@@ -17,6 +17,20 @@ CIRCLE_1_RADIUS = 9.0
 CIRCLE_2_RADIUS = 6.0
 CAPSULE_RADIUS = 7.5
 CAPSULE_CENTERLINE_LENGTH = 25.0
+STRESS_LIMIT = 275.0
+
+OBJECTIVE_LOG_PARAMETERS = ["x1", "y1", "x2", "y2", "x3", "y3", "angle"]
+OBJECTIVE_LOG_FIELDNAMES = [
+    "eval_id",
+    *OBJECTIVE_LOG_PARAMETERS,
+    "objective_value",
+    "max_stress",
+    "geometry_valid",
+    "stress_valid",
+    "fem_valid",
+    "failure_reason",
+    "best_feasible_objective_so_far",
+]
 
 def getConfig():
     # The dsParameterBounds names need to match the NX parameter names in the part file as well as the journal file!
@@ -195,42 +209,66 @@ def calculate_objective(sample, freeCAD_journal, freeCADExecPath):
         # run freecad journal, that updates the geometry with current parameters
         # and solves the fe simulation and returns the deformation energy
         cmd = build_command(sample, freeCAD_journal , freeCADExecPath)
-        res = subprocess.run(cmd, check=True, capture_output=True, text=True)# creationflags=subprocess.CREATE_NO_WINDOW)
-        assert res.returncode == 0 , "freeCAD script routine failed"
-        # retrieve the absorbed energy from the logged string
-        # make sure the last thing you log in the full_journal_fc.py script is the 
-        absorbed_energy = float(res.stdout.split('\n')[-3])
-        max_stress = float(res.stdout.split('\n')[-2])
+        res = subprocess.run(cmd, capture_output=True, text=True)# creationflags=subprocess.CREATE_NO_WINDOW)
         if "Access violation" in res.stderr:
             raise Exception("Access violation error in freeCAD script, likely due to invalid geometry or failed meshing.")
+        if res.returncode != 0:
+            details = (res.stderr or res.stdout).strip()
+            if details:
+                details = details.splitlines()[-1]
+                raise Exception(f"FreeCAD exited with code {res.returncode}: {details}")
+            raise Exception(f"FreeCAD exited with code {res.returncode}")
+        # retrieve the absorbed energy from the logged string
+        # make sure the last thing you log in the full_journal_fc.py script is the 
+        output_lines = [line.strip() for line in res.stdout.splitlines() if line.strip()]
+        absorbed_energy = float(output_lines[-2])
+        max_stress = float(output_lines[-1])
     # catch exceptions and log failed samples. DB entry at index (sampleId) is invalid
     except Exception as e:
-        print(f"Sample processing failed due to error: {e}")
+        failure_reason = str(e)
+        print(f"Sample processing failed due to error: {failure_reason}")
         time.sleep(1)
-        return None, None
+        return None, None, failure_reason
 
     # return binary files for optional backward conversion to geometries
-    return absorbed_energy, max_stress
+    return absorbed_energy, max_stress, ""
 
-def initialize_objective_log(csv_path, parameter_names):
-    fieldnames = ["eval_id"] + parameter_names + ["objective_value", "valid", "best_objective_so_far"]
+def initialize_objective_log(csv_path):
     with open(csv_path, "w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer = csv.DictWriter(file, fieldnames=OBJECTIVE_LOG_FIELDNAMES)
         writer.writeheader()
 
-def log_objective_evaluation(csv_path, eval_id, sample, parameter_names, objective_value, valid, best_objective_so_far):
-    fieldnames = ["eval_id"] + parameter_names + ["objective_value", "valid", "best_objective_so_far"]
+def log_objective_evaluation(
+    csv_path,
+    eval_id,
+    sample,
+    objective_value,
+    max_stress,
+    geometry_valid,
+    stress_valid,
+    fem_valid,
+    failure_reason,
+    best_feasible_objective_so_far,
+):
     row = {
         "eval_id": eval_id,
-        "objective_value": objective_value if valid else "",
-        "valid": valid,
-        "best_objective_so_far": best_objective_so_far if best_objective_so_far is not None else "",
+        "objective_value": objective_value if fem_valid else "",
+        "max_stress": max_stress if fem_valid else "",
+        "geometry_valid": geometry_valid,
+        "stress_valid": stress_valid,
+        "fem_valid": fem_valid,
+        "failure_reason": failure_reason,
+        "best_feasible_objective_so_far": (
+            best_feasible_objective_so_far
+            if best_feasible_objective_so_far is not None
+            else ""
+        ),
     }
-    for name in parameter_names:
-        row[name] = sample[name]
+    for name in OBJECTIVE_LOG_PARAMETERS:
+        row[name] = sample.get(name, "")
 
     with open(csv_path, "a", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer = csv.DictWriter(file, fieldnames=OBJECTIVE_LOG_FIELDNAMES)
         writer.writerow(row)
     
 def main():
@@ -265,45 +303,86 @@ def main():
 
     # generates latin hypercube samples of the parameters
     nSamples = 15
+    max_candidate_attempts = 10000
+    batch_size = max(50, nSamples * 5)
     config = getConfig()
-    # samples is a list of dictionary containing parameter:value pairs
-    samples = generate_geometry_valid_samples(config, nSamples)
 
-    parameter_names = list(config["dsParameterBounds"].keys())
     objective_log_path = os.path.join(os.getcwd(), "objective_evaluations.csv")
-    initialize_objective_log(objective_log_path, parameter_names)
+    initialize_objective_log(objective_log_path)
 
     results = []
-    best_objective_so_far = None
-    for eval_id, sample in enumerate(samples, start=1):
-        geometry_valid, geometry_failure_reason = geometry_constraint_report(sample)
-        if geometry_valid:
-            absorbed_energy, max_stress = calculate_objective(sample, freeCAD_journal, freeCADExecPath)
-        else:
-            print(f"Sample {sample} skipped: {geometry_failure_reason}")
-            absorbed_energy, max_stress = None, None
-        valid = absorbed_energy is not None
-        if valid:
-            if best_objective_so_far is None:
-                best_objective_so_far = absorbed_energy
-            else:
-                best_objective_so_far = max(best_objective_so_far, absorbed_energy)
+    best_feasible_objective_so_far = None
+    eval_id = 0
+    candidate_attempts = 0
+    feasible_samples_found = 0
 
-        log_objective_evaluation(
-            objective_log_path,
-            eval_id,
-            sample,
-            parameter_names,
-            absorbed_energy,
-            valid,
-            best_objective_so_far,
+    while feasible_samples_found < nSamples and candidate_attempts < max_candidate_attempts:
+        samples = generateSamples(
+            config,
+            min(batch_size, max_candidate_attempts - candidate_attempts),
         )
 
-        if absorbed_energy is not None:
-            print(f"Sample {sample} -> Absorbed Energy: {absorbed_energy}, Max Stress: {max_stress}")
-            sample['energy_objective'] = absorbed_energy
-            sample['stress_constraint'] = max_stress
-            results.append(sample)
+        for sample in samples:
+            eval_id += 1
+            candidate_attempts += 1
+
+            geometry_valid, geometry_failure_reason = geometry_constraint_report(sample)
+            absorbed_energy = None
+            max_stress = None
+            fem_valid = False
+            stress_valid = False
+            failure_reason = ""
+
+            if geometry_valid:
+                absorbed_energy, max_stress, failure_reason = calculate_objective(sample, freeCAD_journal, freeCADExecPath)
+                fem_valid = absorbed_energy is not None and max_stress is not None
+                if fem_valid:
+                    stress_valid = max_stress <= STRESS_LIMIT
+                    if not stress_valid:
+                        failure_reason = (
+                            f"max_stress {max_stress:.6g} exceeds limit {STRESS_LIMIT:.6g}"
+                        )
+            else:
+                print(f"Sample {sample} skipped: {geometry_failure_reason}")
+                failure_reason = geometry_failure_reason
+
+            feasible = geometry_valid and fem_valid and stress_valid
+            if feasible:
+                if best_feasible_objective_so_far is None:
+                    best_feasible_objective_so_far = absorbed_energy
+                else:
+                    best_feasible_objective_so_far = max(best_feasible_objective_so_far, absorbed_energy)
+
+            log_objective_evaluation(
+                objective_log_path,
+                eval_id,
+                sample,
+                absorbed_energy,
+                max_stress,
+                geometry_valid,
+                stress_valid,
+                fem_valid,
+                failure_reason,
+                best_feasible_objective_so_far,
+            )
+
+            if fem_valid:
+                print(f"Sample {sample} -> Absorbed Energy: {absorbed_energy}, Max Stress: {max_stress}")
+                sample['energy_objective'] = absorbed_energy
+                sample['stress_constraint'] = max_stress
+                if stress_valid:
+                    feasible_samples_found += 1
+                    results.append(sample)
+
+            if feasible_samples_found >= nSamples:
+                break
+
+    if feasible_samples_found < nSamples:
+        raise RuntimeError(
+            f"Only found {feasible_samples_found} feasible candidates "
+            f"after {candidate_attempts} logged candidates. Tighten config.json bounds "
+            "or raise max_candidate_attempts."
+        )
 
     # each entry in the results list is a dictionary with cadparams:value pairs
     # as well as the objective:value pair corresponding to this geometry
