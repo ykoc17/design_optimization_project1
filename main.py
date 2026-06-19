@@ -1,4 +1,5 @@
 # global imports
+import argparse
 import csv
 import json
 import math
@@ -35,6 +36,9 @@ OBJECTIVE_LOG_FIELDNAMES = [
     "stress_valid",
     "fem_valid",
     "failure_reason",
+    "srsm_iteration",
+    "predicted_objective",
+    "srsm_subspace_fraction",
     "best_feasible_objective_so_far",
 ]
 
@@ -49,7 +53,7 @@ def getConfig():
         print("Configuration file not found. Make sure it is in the same folder as the main.py script")
     return config
 
-def generateSamples(config, nSamples):
+def generateSamples(config, nSamples, bounds=None):
     """
     Generates Latin Hypercube samples for given parameters and saves each sample as a separate JSON file.
     
@@ -58,7 +62,7 @@ def generateSamples(config, nSamples):
     - numSamples: int, number of samples to generate
     """
     # create one dictionary containing all parameters that have ranges
-    parameters = config["dsParameterBounds"]
+    parameters = bounds if bounds is not None else config["dsParameterBounds"]
 
     # Generate input files for latin hypercube samples
     sampler = qmc.LatinHypercube(d=len(parameters)) 
@@ -180,13 +184,17 @@ def geometry_constraint_report(sample):
 
     return True, ""
 
-def generate_geometry_valid_samples(config, nSamples, max_attempts=10000):
+def generate_geometry_valid_samples(config, nSamples, max_attempts=10000, bounds=None):
     valid_samples = []
     attempts = 0
     batch_size = max(50, nSamples * 5)
 
     while len(valid_samples) < nSamples and attempts < max_attempts:
-        candidates = generateSamples(config, min(batch_size, max_attempts - attempts))
+        candidates = generateSamples(
+            config,
+            min(batch_size, max_attempts - attempts),
+            bounds=bounds,
+        )
         for candidate in candidates:
             attempts += 1
             valid, _ = geometry_constraint_report(candidate)
@@ -234,7 +242,84 @@ def parameter_bounds(config):
             "Configuration dsParameterBounds is missing: "
             + ", ".join(missing_parameters)
         )
-    return bounds
+    normalized_bounds = {}
+    for name in OBJECTIVE_LOG_PARAMETERS:
+        lower, upper = bounds[name]
+        lower = float(lower)
+        upper = float(upper)
+        if upper <= lower:
+            raise ValueError(f"Invalid bounds for '{name}': upper must exceed lower")
+        normalized_bounds[name] = (lower, upper)
+    return normalized_bounds
+
+def validate_fraction_config(value, name):
+    if value <= 0.0 or value > 1.0:
+        raise ValueError(f"Configuration value '{name}' must be > 0 and <= 1")
+    return value
+
+def validate_shrink_factor(value, name):
+    if value <= 0.0 or value >= 1.0:
+        raise ValueError(f"Configuration value '{name}' must be > 0 and < 1")
+    return value
+
+def make_centered_subspace_bounds(center, full_bounds, width_fraction):
+    active_bounds = {}
+    for name in OBJECTIVE_LOG_PARAMETERS:
+        full_lower, full_upper = full_bounds[name]
+        full_width = full_upper - full_lower
+        active_width = min(full_width, full_width * width_fraction)
+        center_value = min(max(_as_float(center, name), full_lower), full_upper)
+
+        active_lower = center_value - active_width / 2.0
+        active_upper = center_value + active_width / 2.0
+        if active_lower < full_lower:
+            active_upper += full_lower - active_lower
+            active_lower = full_lower
+        if active_upper > full_upper:
+            active_lower -= active_upper - full_upper
+            active_upper = full_upper
+
+        active_bounds[name] = (
+            max(full_lower, active_lower),
+            min(full_upper, active_upper),
+        )
+    return active_bounds
+
+def sample_within_bounds(sample, bounds):
+    for name in OBJECTIVE_LOG_PARAMETERS:
+        lower, upper = bounds[name]
+        value = _as_float(sample, name)
+        if value < lower or value > upper:
+            return False
+    return True
+
+def select_response_surface_training_results(
+    feasible_results,
+    active_bounds,
+    full_bounds,
+    min_training_points,
+):
+    local_results = [
+        result for result in feasible_results
+        if sample_within_bounds(result, active_bounds)
+    ]
+    if len(local_results) >= min_training_points:
+        return local_results, active_bounds, "active sub-design space"
+    return feasible_results, full_bounds, "full design history"
+
+def has_meaningful_improvement(previous_best, current_best, relative_tolerance):
+    if current_best is None:
+        return False
+    if previous_best is None:
+        return True
+    threshold = max(1.0, abs(previous_best)) * relative_tolerance
+    return current_best > previous_best + threshold
+
+def format_bounds_for_log(bounds):
+    return ", ".join(
+        f"{name}=[{bounds[name][0]:.3g}, {bounds[name][1]:.3g}]"
+        for name in OBJECTIVE_LOG_PARAMETERS
+    )
 
 def design_cache_key(sample, round_decimals):
     return tuple(round(_as_float(sample, name), round_decimals) for name in OBJECTIVE_LOG_PARAMETERS)
@@ -301,6 +386,8 @@ def generate_unique_geometry_valid_samples(
     excluded_keys,
     round_decimals,
     max_attempts=100000,
+    bounds=None,
+    minimum_required=None,
 ):
     valid_samples = []
     seen_keys = set()
@@ -308,7 +395,11 @@ def generate_unique_geometry_valid_samples(
     batch_size = max(50, nSamples * 5)
 
     while len(valid_samples) < nSamples and attempts < max_attempts:
-        candidates = generateSamples(config, min(batch_size, max_attempts - attempts))
+        candidates = generateSamples(
+            config,
+            min(batch_size, max_attempts - attempts),
+            bounds=bounds,
+        )
         for candidate in candidates:
             attempts += 1
             candidate_key = design_cache_key(candidate, round_decimals)
@@ -324,14 +415,30 @@ def generate_unique_geometry_valid_samples(
             if len(valid_samples) == nSamples:
                 break
 
+    required_count = nSamples if minimum_required is None else minimum_required
+    if len(valid_samples) < nSamples and len(valid_samples) >= required_count:
+        region_name = "active sub-design space" if bounds is not None else "full design space"
+        print(
+            f"Generated {len(valid_samples)} of {nSamples} requested "
+            f"unique geometry-valid samples from {region_name} after {attempts} "
+            "candidates; continuing with the partial pool."
+        )
+        return valid_samples
+
     if len(valid_samples) < nSamples:
+        region_name = "active sub-design space" if bounds is not None else "full design space"
         raise RuntimeError(
             f"Could only generate {len(valid_samples)} unique geometry-valid samples "
-            f"after {attempts} candidates. Tighten config.json bounds, reduce candidate "
-            "pool sizes, or raise max_candidate_attempts."
+            f"from {region_name} after {attempts} candidates. Tighten config.json "
+            "bounds, reduce candidate pool sizes, widen the SRSM subspace, or raise "
+            "max_candidate_attempts."
         )
 
-    print(f"Generated {len(valid_samples)} unique geometry-valid samples after {attempts} candidates.")
+    region_name = "active sub-design space" if bounds is not None else "full design space"
+    print(
+        f"Generated {len(valid_samples)} unique geometry-valid samples from "
+        f"{region_name} after {attempts} candidates."
+    )
     return valid_samples
 
 def build_command(sample, journalFile, freeCadExecpath):
@@ -385,6 +492,9 @@ def log_objective_evaluation(
     fem_valid,
     failure_reason,
     best_feasible_objective_so_far,
+    srsm_iteration=None,
+    predicted_objective=None,
+    srsm_subspace_fraction=None,
 ):
     row = {
         "eval_id": eval_id,
@@ -394,6 +504,13 @@ def log_objective_evaluation(
         "stress_valid": stress_valid,
         "fem_valid": fem_valid,
         "failure_reason": failure_reason,
+        "srsm_iteration": srsm_iteration if srsm_iteration is not None else "",
+        "predicted_objective": (
+            predicted_objective if predicted_objective is not None else ""
+        ),
+        "srsm_subspace_fraction": (
+            srsm_subspace_fraction if srsm_subspace_fraction is not None else ""
+        ),
         "best_feasible_objective_so_far": (
             best_feasible_objective_so_far
             if best_feasible_objective_so_far is not None
@@ -407,6 +524,204 @@ def log_objective_evaluation(
         writer = csv.DictWriter(file, fieldnames=OBJECTIVE_LOG_FIELDNAMES)
         writer.writerow(row)
 
+def csv_float_or_none(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+def csv_int_or_none(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+def read_prediction_history(csv_path):
+    best_prediction_by_iteration = {}
+    fem_objective_for_best_prediction_by_iteration = {}
+    subspace_fraction_by_iteration = {}
+    predicted_row_count = 0
+    row_count = 0
+
+    with open(csv_path, newline="") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            row_count += 1
+            srsm_iteration = csv_int_or_none(row.get("srsm_iteration"))
+            subspace_fraction = csv_float_or_none(row.get("srsm_subspace_fraction"))
+            if srsm_iteration is not None and subspace_fraction is not None:
+                subspace_fraction_by_iteration.setdefault(
+                    srsm_iteration,
+                    subspace_fraction,
+                )
+
+            predicted_objective = csv_float_or_none(row.get("predicted_objective"))
+            if srsm_iteration is None or predicted_objective is None:
+                continue
+
+            predicted_row_count += 1
+            previous_best = best_prediction_by_iteration.get(srsm_iteration)
+            if previous_best is None or predicted_objective > previous_best:
+                best_prediction_by_iteration[srsm_iteration] = predicted_objective
+                fem_objective_for_best_prediction_by_iteration[srsm_iteration] = (
+                    csv_float_or_none(row.get("objective_value"))
+                )
+
+    iterations = sorted(best_prediction_by_iteration)
+    subspace_iterations = sorted(subspace_fraction_by_iteration)
+    fem_iterations = [
+        iteration
+        for iteration in iterations
+        if fem_objective_for_best_prediction_by_iteration.get(iteration) is not None
+    ]
+
+    return {
+        "iterations": iterations,
+        "predictions": [
+            best_prediction_by_iteration[iteration] for iteration in iterations
+        ],
+        "plot_iterations": iterations,
+        "fem_iterations": fem_iterations,
+        "fem_objectives": [
+            fem_objective_for_best_prediction_by_iteration[iteration]
+            for iteration in fem_iterations
+        ],
+        "subspace_iterations": subspace_iterations,
+        "subspace_plot_iterations": subspace_iterations,
+        "subspace_fractions": [
+            subspace_fraction_by_iteration[iteration]
+            for iteration in subspace_iterations
+        ],
+        "predicted_row_count": predicted_row_count,
+        "row_count": row_count,
+    }
+
+def save_convergence_plot(csv_path, output_path):
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.ticker import MaxNLocator
+    except ImportError:
+        print(
+            "matplotlib is not available; skipping convergence plot. "
+            f"The objective CSV remains complete at {csv_path}."
+        )
+        return False
+
+    try:
+        history = read_prediction_history(csv_path)
+    except FileNotFoundError:
+        print(f"Cannot create convergence plot because CSV was not found: {csv_path}")
+        return False
+    except OSError as exc:
+        print(f"Cannot create convergence plot from {csv_path}: {exc}")
+        return False
+
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    fig, ax = plt.subplots(figsize=(8.0, 5.0))
+    if history["iterations"]:
+        ax.plot(
+            history["plot_iterations"],
+            history["predictions"],
+            marker="o",
+            linewidth=2.0,
+            color="#1f77b4",
+            label="Surrogate predicted energy",
+        )
+        if history["fem_iterations"]:
+            ax.plot(
+                history["fem_iterations"],
+                history["fem_objectives"],
+                marker="^",
+                linewidth=2.0,
+                color="#7db8e8",
+                label="FEM evaluated energy",
+            )
+    else:
+        message = "No SRSM predictions found"
+        if history["row_count"] == 0:
+            message = "No evaluation rows found"
+        ax.text(
+            0.5,
+            0.5,
+            message,
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
+
+    ax_subspace = ax.twinx()
+    if history["subspace_iterations"]:
+        ax_subspace.plot(
+            history["subspace_plot_iterations"],
+            history["subspace_fractions"],
+            marker="s",
+            linewidth=2.0,
+            color="tab:red",
+            label="ROI side-length fraction",
+        )
+
+    ax.set_xlabel("SRSM iteration step")
+    ax.set_ylabel("Absorbed energy")
+    ax_subspace.set_ylabel("ROI side-length fraction")
+    ax.set_title("Successive RSM convergence")
+    ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.5)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    all_plot_iterations = (
+        history["plot_iterations"]
+        + history["fem_iterations"]
+        + history["subspace_plot_iterations"]
+    )
+    if all_plot_iterations:
+        min_iteration = min(all_plot_iterations)
+        max_iteration = max(all_plot_iterations)
+        if min_iteration == max_iteration:
+            ax.set_xlim(left=min_iteration - 0.5, right=max_iteration + 0.5)
+        else:
+            ax.set_xlim(left=min_iteration, right=max_iteration)
+        ax.set_xticks(range(min_iteration, max_iteration + 1))
+
+    line_handles = []
+    line_labels = []
+    for axis in (ax, ax_subspace):
+        handles, labels = axis.get_legend_handles_labels()
+        line_handles.extend(handles)
+        line_labels.extend(labels)
+    if line_handles:
+        ax.legend(line_handles, line_labels, loc="best")
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200)
+    plt.close(fig)
+
+    if history["iterations"]:
+        print(
+            f"Saved convergence plot to {output_path} "
+            f"({len(history['iterations'])} SRSM iterations from "
+            f"{history['predicted_row_count']} predicted candidates)."
+        )
+    else:
+        print(
+            f"Saved convergence plot to {output_path}; "
+            "no SRSM predictions were found in the CSV."
+        )
+    return True
+
 def evaluate_and_log_candidate(
     csv_path,
     eval_id,
@@ -415,6 +730,9 @@ def evaluate_and_log_candidate(
     freeCADExecPath,
     best_feasible_objective_so_far,
     best_feasible_design_so_far,
+    srsm_iteration=None,
+    predicted_objective=None,
+    srsm_subspace_fraction=None,
 ):
     geometry_valid, geometry_failure_reason = geometry_constraint_report(sample)
     absorbed_energy = None
@@ -461,6 +779,9 @@ def evaluate_and_log_candidate(
         fem_valid,
         failure_reason,
         best_feasible_objective_so_far,
+        srsm_iteration=srsm_iteration,
+        predicted_objective=predicted_objective,
+        srsm_subspace_fraction=srsm_subspace_fraction,
     )
 
     if fem_valid:
@@ -478,16 +799,48 @@ def evaluate_and_log_candidate(
         "energy_objective": absorbed_energy,
         "stress_constraint": max_stress,
         "fem_attempted": geometry_valid,
+        "srsm_iteration": srsm_iteration,
+        "predicted_objective": predicted_objective,
+        "srsm_subspace_fraction": srsm_subspace_fraction,
     }
     return evaluation, best_feasible_objective_so_far, best_feasible_design_so_far
-    
-def main():
-    """
-    Run a budgeted response-surface optimization loop.
 
-    Real FreeCAD FEM evaluations remain the source of truth. The quadratic
-    response surface is used only to rank new geometry-valid candidates cheaply.
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Run the FreeCAD-backed successive RSM optimizer or plot convergence from an existing CSV."
+    )
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Only read the objective CSV and save the SRSM convergence plot.",
+    )
+    parser.add_argument(
+        "--csv",
+        dest="csv_path",
+        default=os.path.join(os.getcwd(), "objective_evaluations.csv"),
+        help="Path to the objective evaluations CSV.",
+    )
+    parser.add_argument(
+        "--plot-output",
+        default=os.path.join(os.getcwd(), "plots", "convergence.png"),
+        help="Path for the convergence plot image.",
+    )
+    return parser.parse_args(argv)
+
+def main(argv=None):
     """
+    Run a budgeted successive response surface optimization loop.
+
+    Each SRSM iteration builds a response surface for the current region of
+    interest, samples only inside that active sub-design space, evaluates the
+    most promising predictions with FreeCAD, then moves and shrinks the next
+    active region around the best feasible FEM result.
+    """
+    args = parse_args(argv)
+    if args.plot_only:
+        save_convergence_plot(args.csv_path, args.plot_output)
+        return
+
     freeCADExecPath = r'C:/Program Files/FreeCAD 1.0/bin/FreeCADCmd.exe' # default on windows
     # mac should be something like: 
     # freeCADExecPath = r'/Applications/FreeCAD.app/Contents/MacOS/FreeCADCmd'
@@ -520,8 +873,41 @@ def main():
     )
     cache_round_decimals = get_config_int(config, "cache_round_decimals", 6, minimum=0)
     rsm_ridge_lambda = get_config_float(config, "rsm_ridge_lambda", 1.0e-8, minimum=0.0)
+    srsm_initial_subspace_fraction = validate_fraction_config(
+        get_config_float(config, "srsm_initial_subspace_fraction", 0.6, minimum=0.0),
+        "srsm_initial_subspace_fraction",
+    )
+    srsm_min_subspace_fraction = validate_fraction_config(
+        get_config_float(config, "srsm_min_subspace_fraction", 0.1, minimum=0.0),
+        "srsm_min_subspace_fraction",
+    )
+    if srsm_min_subspace_fraction > srsm_initial_subspace_fraction:
+        raise ValueError(
+            "Configuration value 'srsm_min_subspace_fraction' must be <= "
+            "'srsm_initial_subspace_fraction'"
+        )
+    srsm_subspace_shrink_factor = validate_shrink_factor(
+        get_config_float(config, "srsm_subspace_shrink_factor", 0.7, minimum=0.0),
+        "srsm_subspace_shrink_factor",
+    )
+    srsm_failure_shrink_factor = validate_shrink_factor(
+        get_config_float(config, "srsm_failure_shrink_factor", 0.5, minimum=0.0),
+        "srsm_failure_shrink_factor",
+    )
+    srsm_improvement_tolerance = get_config_float(
+        config,
+        "srsm_improvement_tolerance",
+        1.0e-6,
+        minimum=0.0,
+    )
+    if min_surrogate_training_points > max_fem_evaluations:
+        print(
+            "Warning: min_surrogate_training_points is greater than "
+            "max_fem_evaluations, so the adaptive SRSM phase cannot start "
+            "with the current config."
+        )
 
-    objective_log_path = os.path.join(os.getcwd(), "objective_evaluations.csv")
+    objective_log_path = args.csv_path
     initialize_objective_log(objective_log_path)
 
     feasible_results = []
@@ -530,14 +916,28 @@ def main():
     best_feasible_design_so_far = None
     eval_id = 0
     fem_evaluations = 0
+    srsm_iteration = 0
+    active_subspace_fraction = srsm_initial_subspace_fraction
 
-    def evaluate_candidates(samples, phase_name):
+    def evaluate_candidates(
+        samples,
+        phase_name,
+        candidate_srsm_iteration=None,
+        predicted_values=None,
+        candidate_srsm_subspace_fraction=None,
+    ):
         nonlocal eval_id
         nonlocal fem_evaluations
         nonlocal best_feasible_objective_so_far
         nonlocal best_feasible_design_so_far
 
-        for sample in samples:
+        if predicted_values is None:
+            predicted_values = [None] * len(samples)
+        if len(predicted_values) != len(samples):
+            raise ValueError("predicted_values must match the number of samples")
+
+        evaluations = []
+        for sample, predicted_objective in zip(samples, predicted_values):
             if fem_evaluations >= max_fem_evaluations:
                 break
 
@@ -560,6 +960,9 @@ def main():
                     freeCADExecPath,
                     best_feasible_objective_so_far,
                     best_feasible_design_so_far,
+                    srsm_iteration=candidate_srsm_iteration,
+                    predicted_objective=predicted_objective,
+                    srsm_subspace_fraction=candidate_srsm_subspace_fraction,
                 )
             )
 
@@ -574,6 +977,10 @@ def main():
                         "stress_constraint": evaluation["stress_constraint"],
                     }
                 )
+
+            evaluations.append(evaluation)
+
+        return evaluations
 
     initial_doe_count = min(initial_doe_size, max_fem_evaluations)
     if initial_doe_count > 0:
@@ -590,9 +997,28 @@ def main():
     while fem_evaluations < max_fem_evaluations:
         remaining_budget = max_fem_evaluations - fem_evaluations
         batch_count = min(surrogate_batch_size, remaining_budget)
+        selected_srsm_iteration = None
+        selected_predictions = None
+        previous_best_before_srsm = None
 
         if len(feasible_results) >= min_surrogate_training_points:
-            model = fit_response_surface(feasible_results, bounds, rsm_ridge_lambda)
+            previous_best_before_srsm = best_feasible_objective_so_far
+            srsm_iteration += 1
+            selected_srsm_iteration = srsm_iteration
+            active_bounds = make_centered_subspace_bounds(
+                best_feasible_design_so_far,
+                bounds,
+                active_subspace_fraction,
+            )
+            training_results, model_bounds, training_source = (
+                select_response_surface_training_results(
+                    feasible_results,
+                    active_bounds,
+                    bounds,
+                    min_surrogate_training_points,
+                )
+            )
+            model = fit_response_surface(training_results, model_bounds, rsm_ridge_lambda)
             candidate_pool_count = max(surrogate_candidate_pool_size, batch_count)
             candidate_pool = generate_unique_geometry_valid_samples(
                 config,
@@ -600,17 +1026,32 @@ def main():
                 evaluated_design_keys,
                 cache_round_decimals,
                 max_attempts=max_candidate_attempts,
+                bounds=active_bounds,
+                minimum_required=batch_count,
             )
             predictions = predict_response_surface(model, candidate_pool)
             ranked_indices = np.argsort(predictions)[::-1]
             selected_samples = [
                 candidate_pool[index] for index in ranked_indices[:batch_count]
             ]
+            selected_predictions = [
+                float(predictions[index]) for index in ranked_indices[:batch_count]
+            ]
+            best_iteration_prediction = selected_predictions[0]
             print(
-                "Fitted quadratic response surface with "
-                f"{model['training_count']} feasible FEM points "
-                f"({QUADRATIC_FEATURE_COUNT} features); evaluating top "
-                f"{len(selected_samples)} predicted candidates."
+                f"SRSM iteration {srsm_iteration}: fitted quadratic response surface with "
+                f"{model['training_count']} feasible FEM points from {training_source} "
+                f"({QUADRATIC_FEATURE_COUNT} features)."
+            )
+            print(
+                f"SRSM iteration {srsm_iteration}: active sub-design fraction "
+                f"{active_subspace_fraction:.3g}; best predicted absorbed energy "
+                f"is {best_iteration_prediction:.6g}; evaluating top "
+                f"{len(selected_samples)} candidates."
+            )
+            print(
+                f"SRSM iteration {srsm_iteration}: active bounds "
+                f"{format_bounds_for_log(active_bounds)}"
             )
         else:
             print(
@@ -626,7 +1067,50 @@ def main():
             )
 
         fem_evaluations_before_batch = fem_evaluations
-        evaluate_candidates(selected_samples, "RSM")
+        phase_name = "Exploration"
+        if selected_srsm_iteration is not None:
+            phase_name = f"SRSM iteration {selected_srsm_iteration}"
+        batch_evaluations = evaluate_candidates(
+            selected_samples,
+            phase_name,
+            candidate_srsm_iteration=selected_srsm_iteration,
+            predicted_values=selected_predictions,
+            candidate_srsm_subspace_fraction=(
+                active_subspace_fraction
+                if selected_srsm_iteration is not None
+                else None
+            ),
+        )
+        if selected_srsm_iteration is not None:
+            improved = has_meaningful_improvement(
+                previous_best_before_srsm,
+                best_feasible_objective_so_far,
+                srsm_improvement_tolerance,
+            )
+            shrink_factor = (
+                srsm_subspace_shrink_factor
+                if improved
+                else srsm_failure_shrink_factor
+            )
+            active_subspace_fraction = max(
+                srsm_min_subspace_fraction,
+                active_subspace_fraction * shrink_factor,
+            )
+            computed_objectives = [
+                evaluation["energy_objective"]
+                for evaluation in batch_evaluations
+                if evaluation["feasible"]
+            ]
+            computed_text = "no feasible computed objective"
+            if computed_objectives:
+                computed_text = f"best computed absorbed energy {max(computed_objectives):.6g}"
+            adaptation_reason = "improved" if improved else "did not improve"
+            print(
+                f"SRSM iteration {selected_srsm_iteration}: {computed_text}; "
+                f"{adaptation_reason}; next sub-design fraction "
+                f"{active_subspace_fraction:.3g}."
+            )
+            save_convergence_plot(objective_log_path, args.plot_output)
         if fem_evaluations == fem_evaluations_before_batch:
             raise RuntimeError(
                 "No new FEM evaluations were completed in the latest iteration. "
@@ -643,6 +1127,8 @@ def main():
         for name in OBJECTIVE_LOG_PARAMETERS:
             print(f"  {name}: {best_feasible_design_so_far[name]}")
         print(f"Best feasible objective: {best_feasible_objective_so_far}")
+
+    save_convergence_plot(objective_log_path, args.plot_output)
 
 
 
