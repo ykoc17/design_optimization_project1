@@ -11,5 +11,14 @@
         "x3": [12, 48], 
         "y3": [12, 48],
         "angle": [1,89]
-    }
+    },
+    "_comment3": "Response surface optimization settings",
+    "initial_doe_size": 50,
+    "max_fem_evaluations": 75,
+    "surrogate_candidate_pool_size": 2000,
+    "surrogate_batch_size": 5,
+    "min_surrogate_training_points": 8,
+    "max_candidate_attempts": 100000,
+    "cache_round_decimals": 6,
+    "rsm_ridge_lambda": 1e-8
 }

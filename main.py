@@ -20,6 +20,12 @@ CAPSULE_CENTERLINE_LENGTH = 25.0
 STRESS_LIMIT = 275.0
 
 OBJECTIVE_LOG_PARAMETERS = ["x1", "y1", "x2", "y2", "x3", "y3", "angle"]
+QUADRATIC_FEATURE_COUNT = (
+    1
+    + len(OBJECTIVE_LOG_PARAMETERS)
+    + len(OBJECTIVE_LOG_PARAMETERS)
+    + (len(OBJECTIVE_LOG_PARAMETERS) * (len(OBJECTIVE_LOG_PARAMETERS) - 1)) // 2
+)
 OBJECTIVE_LOG_FIELDNAMES = [
     "eval_id",
     *OBJECTIVE_LOG_PARAMETERS,
@@ -198,6 +204,136 @@ def generate_geometry_valid_samples(config, nSamples, max_attempts=10000):
     print(f"Generated {len(valid_samples)} geometry-valid samples after {attempts} candidates.")
     return valid_samples
 
+def get_config_int(config, name, default, minimum=1):
+    value = config.get(name, default)
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Configuration value '{name}' must be an integer")
+    if value < minimum:
+        raise ValueError(f"Configuration value '{name}' must be >= {minimum}")
+    return value
+
+def get_config_float(config, name, default, minimum=None):
+    value = config.get(name, default)
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Configuration value '{name}' must be numeric")
+    if minimum is not None and value < minimum:
+        raise ValueError(f"Configuration value '{name}' must be >= {minimum}")
+    return value
+
+def parameter_bounds(config):
+    bounds = config["dsParameterBounds"]
+    missing_parameters = [
+        name for name in OBJECTIVE_LOG_PARAMETERS if name not in bounds
+    ]
+    if missing_parameters:
+        raise ValueError(
+            "Configuration dsParameterBounds is missing: "
+            + ", ".join(missing_parameters)
+        )
+    return bounds
+
+def design_cache_key(sample, round_decimals):
+    return tuple(round(_as_float(sample, name), round_decimals) for name in OBJECTIVE_LOG_PARAMETERS)
+
+def normalize_sample(sample, bounds):
+    normalized = []
+    for name in OBJECTIVE_LOG_PARAMETERS:
+        lower, upper = bounds[name]
+        lower = float(lower)
+        upper = float(upper)
+        if upper <= lower:
+            raise ValueError(f"Invalid bounds for '{name}': upper must exceed lower")
+        normalized.append((2.0 * (_as_float(sample, name) - lower) / (upper - lower)) - 1.0)
+    return np.array(normalized, dtype=float)
+
+def quadratic_features_from_normalized(normalized_values):
+    features = [1.0]
+    features.extend(normalized_values)
+    features.extend(value * value for value in normalized_values)
+    for i in range(len(normalized_values)):
+        for j in range(i + 1, len(normalized_values)):
+            features.append(normalized_values[i] * normalized_values[j])
+    return np.array(features, dtype=float)
+
+def build_quadratic_feature_matrix(samples, bounds):
+    feature_rows = []
+    for sample in samples:
+        normalized = normalize_sample(sample, bounds)
+        feature_rows.append(quadratic_features_from_normalized(normalized))
+    return np.vstack(feature_rows)
+
+def fit_response_surface(feasible_results, bounds, ridge_lambda):
+    if not feasible_results:
+        return None
+
+    x_matrix = build_quadratic_feature_matrix(feasible_results, bounds)
+    y_vector = np.array(
+        [float(result["energy_objective"]) for result in feasible_results],
+        dtype=float,
+    )
+
+    regularization = np.eye(x_matrix.shape[1], dtype=float) * ridge_lambda
+    regularization[0, 0] = 0.0
+    normal_matrix = x_matrix.T @ x_matrix + regularization
+    normal_rhs = x_matrix.T @ y_vector
+    try:
+        coefficients = np.linalg.solve(normal_matrix, normal_rhs)
+    except np.linalg.LinAlgError:
+        coefficients = np.linalg.lstsq(normal_matrix, normal_rhs, rcond=None)[0]
+
+    return {
+        "bounds": bounds,
+        "coefficients": coefficients,
+        "training_count": len(feasible_results),
+    }
+
+def predict_response_surface(model, samples):
+    x_matrix = build_quadratic_feature_matrix(samples, model["bounds"])
+    return x_matrix @ model["coefficients"]
+
+def generate_unique_geometry_valid_samples(
+    config,
+    nSamples,
+    excluded_keys,
+    round_decimals,
+    max_attempts=100000,
+):
+    valid_samples = []
+    seen_keys = set()
+    attempts = 0
+    batch_size = max(50, nSamples * 5)
+
+    while len(valid_samples) < nSamples and attempts < max_attempts:
+        candidates = generateSamples(config, min(batch_size, max_attempts - attempts))
+        for candidate in candidates:
+            attempts += 1
+            candidate_key = design_cache_key(candidate, round_decimals)
+            if candidate_key in excluded_keys or candidate_key in seen_keys:
+                continue
+
+            geometry_valid, _ = geometry_constraint_report(candidate)
+            if not geometry_valid:
+                continue
+
+            seen_keys.add(candidate_key)
+            valid_samples.append(candidate)
+            if len(valid_samples) == nSamples:
+                break
+
+    if len(valid_samples) < nSamples:
+        raise RuntimeError(
+            f"Could only generate {len(valid_samples)} unique geometry-valid samples "
+            f"after {attempts} candidates. Tighten config.json bounds, reduce candidate "
+            "pool sizes, or raise max_candidate_attempts."
+        )
+
+    print(f"Generated {len(valid_samples)} unique geometry-valid samples after {attempts} candidates.")
+    return valid_samples
+
 def build_command(sample, journalFile, freeCadExecpath):
     cmd = [freeCadExecpath, journalFile, json.dumps(sample),] 
     return cmd
@@ -270,19 +406,87 @@ def log_objective_evaluation(
     with open(csv_path, "a", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=OBJECTIVE_LOG_FIELDNAMES)
         writer.writerow(row)
+
+def evaluate_and_log_candidate(
+    csv_path,
+    eval_id,
+    sample,
+    freeCAD_journal,
+    freeCADExecPath,
+    best_feasible_objective_so_far,
+    best_feasible_design_so_far,
+):
+    geometry_valid, geometry_failure_reason = geometry_constraint_report(sample)
+    absorbed_energy = None
+    max_stress = None
+    fem_valid = False
+    stress_valid = False
+    failure_reason = ""
+
+    if geometry_valid:
+        absorbed_energy, max_stress, failure_reason = calculate_objective(
+            sample,
+            freeCAD_journal,
+            freeCADExecPath,
+        )
+        fem_valid = absorbed_energy is not None and max_stress is not None
+        if fem_valid:
+            stress_valid = max_stress <= STRESS_LIMIT
+            if not stress_valid:
+                failure_reason = (
+                    f"max_stress {max_stress:.6g} exceeds limit {STRESS_LIMIT:.6g}"
+                )
+    else:
+        print(f"Sample {sample} skipped: {geometry_failure_reason}")
+        failure_reason = geometry_failure_reason
+
+    feasible = geometry_valid and fem_valid and stress_valid
+    if feasible and (
+        best_feasible_objective_so_far is None
+        or absorbed_energy > best_feasible_objective_so_far
+    ):
+        best_feasible_objective_so_far = absorbed_energy
+        best_feasible_design_so_far = {
+            name: _as_float(sample, name) for name in OBJECTIVE_LOG_PARAMETERS
+        }
+
+    log_objective_evaluation(
+        csv_path,
+        eval_id,
+        sample,
+        absorbed_energy,
+        max_stress,
+        geometry_valid,
+        stress_valid,
+        fem_valid,
+        failure_reason,
+        best_feasible_objective_so_far,
+    )
+
+    if fem_valid:
+        print(f"Sample {sample} -> Absorbed Energy: {absorbed_energy}, Max Stress: {max_stress}")
+
+    evaluation = {
+        **{name: _as_float(sample, name) for name in OBJECTIVE_LOG_PARAMETERS},
+        "objective_value": absorbed_energy,
+        "max_stress": max_stress,
+        "geometry_valid": geometry_valid,
+        "stress_valid": stress_valid,
+        "fem_valid": fem_valid,
+        "failure_reason": failure_reason,
+        "feasible": feasible,
+        "energy_objective": absorbed_energy,
+        "stress_constraint": max_stress,
+        "fem_attempted": geometry_valid,
+    }
+    return evaluation, best_feasible_objective_so_far, best_feasible_design_so_far
     
 def main():
     """
-    In this example, a latin hypercube sampling is performed on the parameter bounds
-    and the geometries are evaluated for there objective of energy absorbtion. 
-    TODO:
-    Your task is to implement an optimizer to find the optimal geometry maximizing the
-    energy absorption capacity. This can include better sampling strategies, choosing 
-    a suitable optimizer and handling parameter combinations that yield invalid geometries.
+    Run a budgeted response-surface optimization loop.
 
-    Do not forget to fulfill the maximum stress constraint as well as the geometry 
-    constraints listed in section 2 of the project description.
-
+    Real FreeCAD FEM evaluations remain the source of truth. The quadratic
+    response surface is used only to rank new geometry-valid candidates cheaply.
     """
     freeCADExecPath = r'C:/Program Files/FreeCAD 1.0/bin/FreeCADCmd.exe' # default on windows
     # mac should be something like: 
@@ -301,96 +505,144 @@ def main():
     '''
     freeCAD_journal = os.path.join(os.getcwd(), "full_journal_fc.py")
 
-    # generates latin hypercube samples of the parameters
-    nSamples = 15
-    max_candidate_attempts = 10000
-    batch_size = max(50, nSamples * 5)
     config = getConfig()
+    bounds = parameter_bounds(config)
+
+    initial_doe_size = get_config_int(config, "initial_doe_size", 50)
+    max_fem_evaluations = get_config_int(config, "max_fem_evaluations", 75)
+    surrogate_candidate_pool_size = get_config_int(config, "surrogate_candidate_pool_size", 2000)
+    surrogate_batch_size = get_config_int(config, "surrogate_batch_size", 5)
+    max_candidate_attempts = get_config_int(config, "max_candidate_attempts", 100000)
+    min_surrogate_training_points = get_config_int(
+        config,
+        "min_surrogate_training_points",
+        max(8, len(OBJECTIVE_LOG_PARAMETERS) + 1),
+    )
+    cache_round_decimals = get_config_int(config, "cache_round_decimals", 6, minimum=0)
+    rsm_ridge_lambda = get_config_float(config, "rsm_ridge_lambda", 1.0e-8, minimum=0.0)
 
     objective_log_path = os.path.join(os.getcwd(), "objective_evaluations.csv")
     initialize_objective_log(objective_log_path)
 
-    results = []
+    feasible_results = []
+    evaluated_design_keys = set()
     best_feasible_objective_so_far = None
+    best_feasible_design_so_far = None
     eval_id = 0
-    candidate_attempts = 0
-    feasible_samples_found = 0
+    fem_evaluations = 0
 
-    while feasible_samples_found < nSamples and candidate_attempts < max_candidate_attempts:
-        samples = generateSamples(
-            config,
-            min(batch_size, max_candidate_attempts - candidate_attempts),
-        )
+    def evaluate_candidates(samples, phase_name):
+        nonlocal eval_id
+        nonlocal fem_evaluations
+        nonlocal best_feasible_objective_so_far
+        nonlocal best_feasible_design_so_far
 
         for sample in samples:
-            eval_id += 1
-            candidate_attempts += 1
-
-            geometry_valid, geometry_failure_reason = geometry_constraint_report(sample)
-            absorbed_energy = None
-            max_stress = None
-            fem_valid = False
-            stress_valid = False
-            failure_reason = ""
-
-            if geometry_valid:
-                absorbed_energy, max_stress, failure_reason = calculate_objective(sample, freeCAD_journal, freeCADExecPath)
-                fem_valid = absorbed_energy is not None and max_stress is not None
-                if fem_valid:
-                    stress_valid = max_stress <= STRESS_LIMIT
-                    if not stress_valid:
-                        failure_reason = (
-                            f"max_stress {max_stress:.6g} exceeds limit {STRESS_LIMIT:.6g}"
-                        )
-            else:
-                print(f"Sample {sample} skipped: {geometry_failure_reason}")
-                failure_reason = geometry_failure_reason
-
-            feasible = geometry_valid and fem_valid and stress_valid
-            if feasible:
-                if best_feasible_objective_so_far is None:
-                    best_feasible_objective_so_far = absorbed_energy
-                else:
-                    best_feasible_objective_so_far = max(best_feasible_objective_so_far, absorbed_energy)
-
-            log_objective_evaluation(
-                objective_log_path,
-                eval_id,
-                sample,
-                absorbed_energy,
-                max_stress,
-                geometry_valid,
-                stress_valid,
-                fem_valid,
-                failure_reason,
-                best_feasible_objective_so_far,
-            )
-
-            if fem_valid:
-                print(f"Sample {sample} -> Absorbed Energy: {absorbed_energy}, Max Stress: {max_stress}")
-                sample['energy_objective'] = absorbed_energy
-                sample['stress_constraint'] = max_stress
-                if stress_valid:
-                    feasible_samples_found += 1
-                    results.append(sample)
-
-            if feasible_samples_found >= nSamples:
+            if fem_evaluations >= max_fem_evaluations:
                 break
 
-    if feasible_samples_found < nSamples:
-        raise RuntimeError(
-            f"Only found {feasible_samples_found} feasible candidates "
-            f"after {candidate_attempts} logged candidates. Tighten config.json bounds "
-            "or raise max_candidate_attempts."
-        )
+            sample_key = design_cache_key(sample, cache_round_decimals)
+            if sample_key in evaluated_design_keys:
+                continue
+            evaluated_design_keys.add(sample_key)
 
-    # each entry in the results list is a dictionary with cadparams:value pairs
-    # as well as the objective:value pair corresponding to this geometry
-    #print(results)
-    # print objective value of one result
-    idx = 1
-    #print('objective value (total plastic deformation energy):', results[idx]['energy_objective'])
-    #print('maximum stress value:', results[idx]['stress_constraint'])
+            eval_id += 1
+            print(
+                f"{phase_name} candidate {eval_id}: "
+                f"FEM evaluation {fem_evaluations + 1}/{max_fem_evaluations}"
+            )
+            evaluation, best_feasible_objective_so_far, best_feasible_design_so_far = (
+                evaluate_and_log_candidate(
+                    objective_log_path,
+                    eval_id,
+                    sample,
+                    freeCAD_journal,
+                    freeCADExecPath,
+                    best_feasible_objective_so_far,
+                    best_feasible_design_so_far,
+                )
+            )
+
+            if evaluation["fem_attempted"]:
+                fem_evaluations += 1
+
+            if evaluation["feasible"]:
+                feasible_results.append(
+                    {
+                        **{name: evaluation[name] for name in OBJECTIVE_LOG_PARAMETERS},
+                        "energy_objective": evaluation["energy_objective"],
+                        "stress_constraint": evaluation["stress_constraint"],
+                    }
+                )
+
+    initial_doe_count = min(initial_doe_size, max_fem_evaluations)
+    if initial_doe_count > 0:
+        print(f"Generating initial DOE with {initial_doe_count} geometry-valid samples.")
+        initial_doe_samples = generate_unique_geometry_valid_samples(
+            config,
+            initial_doe_count,
+            evaluated_design_keys,
+            cache_round_decimals,
+            max_attempts=max_candidate_attempts,
+        )
+        evaluate_candidates(initial_doe_samples, "DOE")
+
+    while fem_evaluations < max_fem_evaluations:
+        remaining_budget = max_fem_evaluations - fem_evaluations
+        batch_count = min(surrogate_batch_size, remaining_budget)
+
+        if len(feasible_results) >= min_surrogate_training_points:
+            model = fit_response_surface(feasible_results, bounds, rsm_ridge_lambda)
+            candidate_pool_count = max(surrogate_candidate_pool_size, batch_count)
+            candidate_pool = generate_unique_geometry_valid_samples(
+                config,
+                candidate_pool_count,
+                evaluated_design_keys,
+                cache_round_decimals,
+                max_attempts=max_candidate_attempts,
+            )
+            predictions = predict_response_surface(model, candidate_pool)
+            ranked_indices = np.argsort(predictions)[::-1]
+            selected_samples = [
+                candidate_pool[index] for index in ranked_indices[:batch_count]
+            ]
+            print(
+                "Fitted quadratic response surface with "
+                f"{model['training_count']} feasible FEM points "
+                f"({QUADRATIC_FEATURE_COUNT} features); evaluating top "
+                f"{len(selected_samples)} predicted candidates."
+            )
+        else:
+            print(
+                f"Only {len(feasible_results)} feasible FEM points are available; "
+                "using geometry-valid LHS exploration before fitting the response surface."
+            )
+            selected_samples = generate_unique_geometry_valid_samples(
+                config,
+                batch_count,
+                evaluated_design_keys,
+                cache_round_decimals,
+                max_attempts=max_candidate_attempts,
+            )
+
+        fem_evaluations_before_batch = fem_evaluations
+        evaluate_candidates(selected_samples, "RSM")
+        if fem_evaluations == fem_evaluations_before_batch:
+            raise RuntimeError(
+                "No new FEM evaluations were completed in the latest iteration. "
+                "Check candidate generation and cache settings."
+            )
+
+    if best_feasible_design_so_far is None:
+        print(
+            "Optimization finished without a feasible FEM result satisfying "
+            f"max_stress <= {STRESS_LIMIT:.6g} MPa."
+        )
+    else:
+        print("Best feasible design found:")
+        for name in OBJECTIVE_LOG_PARAMETERS:
+            print(f"  {name}: {best_feasible_design_so_far[name]}")
+        print(f"Best feasible objective: {best_feasible_objective_so_far}")
 
 
 
