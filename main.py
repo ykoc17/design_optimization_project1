@@ -8,6 +8,16 @@ import subprocess
 import scipy.stats.qmc as qmc
 import time
 
+PLATE_SIZE = 60.0
+
+MIN_EDGE_CLEARANCE = 2.0
+MIN_CUTOUT_CLEARANCE = 1.0
+
+CIRCLE_1_RADIUS = 9.0
+CIRCLE_2_RADIUS = 6.0
+CAPSULE_RADIUS = 7.5
+CAPSULE_CENTERLINE_LENGTH = 25.0
+
 def getConfig():
     # The dsParameterBounds names need to match the NX parameter names in the part file as well as the journal file!
     config_file = os.path.join(os.getcwd(), 'config.json')
@@ -39,6 +49,140 @@ def generateSamples(config, nSamples):
         param_dict = {k:float(v) for k,v in zip(parameters.keys(), scaled_samples[i])}
         sampleLst.append(param_dict)
     return sampleLst
+
+def _as_float(sample, name):
+    try:
+        return float(sample[name])
+    except KeyError:
+        raise ValueError(f"missing required geometry parameter '{name}'")
+    except (TypeError, ValueError):
+        raise ValueError(f"geometry parameter '{name}' is not numeric")
+
+def _point_distance(point_a, point_b):
+    return math.hypot(point_a[0] - point_b[0], point_a[1] - point_b[1])
+
+def _point_to_segment_distance(point, segment_start, segment_end):
+    px, py = point
+    ax, ay = segment_start
+    bx, by = segment_end
+    dx = bx - ax
+    dy = by - ay
+    length_squared = dx * dx + dy * dy
+    if length_squared == 0:
+        return _point_distance(point, segment_start)
+
+    t = ((px - ax) * dx + (py - ay) * dy) / length_squared
+    t = max(0.0, min(1.0, t))
+    closest = (ax + t * dx, ay + t * dy)
+    return _point_distance(point, closest)
+
+def _circle_edge_clearance(center, radius):
+    x, y = center
+    return min(x - radius, y - radius, PLATE_SIZE - x - radius, PLATE_SIZE - y - radius)
+
+def _capsule_centerline(sample):
+    x3 = _as_float(sample, "x3")
+    y3 = _as_float(sample, "y3")
+    angle_degrees = _as_float(sample, "angle")
+
+    # FreeCAD's sketch uses a clockwise-positive spreadsheet angle for this slot.
+    theta = math.radians(-angle_degrees)
+    half_length = CAPSULE_CENTERLINE_LENGTH / 2.0
+    dx = half_length * math.cos(theta)
+    dy = half_length * math.sin(theta)
+    return (x3 - dx, y3 - dy), (x3 + dx, y3 + dy)
+
+def _capsule_edge_clearance(segment_start, segment_end, radius):
+    min_x = min(segment_start[0], segment_end[0])
+    max_x = max(segment_start[0], segment_end[0])
+    min_y = min(segment_start[1], segment_end[1])
+    max_y = max(segment_start[1], segment_end[1])
+    return min(min_x - radius, min_y - radius, PLATE_SIZE - max_x - radius, PLATE_SIZE - max_y - radius)
+
+def _circle_cutout_clearance(center_a, radius_a, center_b, radius_b):
+    return _point_distance(center_a, center_b) - radius_a - radius_b
+
+def _circle_capsule_cutout_clearance(circle_center, circle_radius, segment_start, segment_end, capsule_radius):
+    return _point_to_segment_distance(circle_center, segment_start, segment_end) - circle_radius - capsule_radius
+
+def geometry_constraint_report(sample):
+    try:
+        circle_1_center = (_as_float(sample, "x1"), _as_float(sample, "y1"))
+        circle_2_center = (_as_float(sample, "x2"), _as_float(sample, "y2"))
+        capsule_start, capsule_end = _capsule_centerline(sample)
+    except ValueError as exc:
+        return False, str(exc)
+
+    edge_clearances = [
+        ("circle 1", _circle_edge_clearance(circle_1_center, CIRCLE_1_RADIUS)),
+        ("circle 2", _circle_edge_clearance(circle_2_center, CIRCLE_2_RADIUS)),
+        ("capsule", _capsule_edge_clearance(capsule_start, capsule_end, CAPSULE_RADIUS)),
+    ]
+    for cutout_name, clearance in edge_clearances:
+        if clearance < MIN_EDGE_CLEARANCE:
+            return False, (
+                f"{cutout_name} edge clearance is {clearance:.3f} mm; "
+                f"minimum is {MIN_EDGE_CLEARANCE:.3f} mm"
+            )
+
+    cutout_clearances = [
+        (
+            "circle 1 to circle 2",
+            _circle_cutout_clearance(circle_1_center, CIRCLE_1_RADIUS, circle_2_center, CIRCLE_2_RADIUS),
+        ),
+        (
+            "circle 1 to capsule",
+            _circle_capsule_cutout_clearance(
+                circle_1_center,
+                CIRCLE_1_RADIUS,
+                capsule_start,
+                capsule_end,
+                CAPSULE_RADIUS,
+            ),
+        ),
+        (
+            "circle 2 to capsule",
+            _circle_capsule_cutout_clearance(
+                circle_2_center,
+                CIRCLE_2_RADIUS,
+                capsule_start,
+                capsule_end,
+                CAPSULE_RADIUS,
+            ),
+        ),
+    ]
+    for cutout_pair, clearance in cutout_clearances:
+        if clearance < MIN_CUTOUT_CLEARANCE:
+            return False, (
+                f"{cutout_pair} clearance is {clearance:.3f} mm; "
+                f"minimum is {MIN_CUTOUT_CLEARANCE:.3f} mm"
+            )
+
+    return True, ""
+
+def generate_geometry_valid_samples(config, nSamples, max_attempts=10000):
+    valid_samples = []
+    attempts = 0
+    batch_size = max(50, nSamples * 5)
+
+    while len(valid_samples) < nSamples and attempts < max_attempts:
+        candidates = generateSamples(config, min(batch_size, max_attempts - attempts))
+        for candidate in candidates:
+            attempts += 1
+            valid, _ = geometry_constraint_report(candidate)
+            if valid:
+                valid_samples.append(candidate)
+                if len(valid_samples) == nSamples:
+                    break
+
+    if len(valid_samples) < nSamples:
+        raise RuntimeError(
+            f"Could only generate {len(valid_samples)} geometry-valid samples "
+            f"after {attempts} attempts. Tighten config.json bounds or raise max_attempts."
+        )
+
+    print(f"Generated {len(valid_samples)} geometry-valid samples after {attempts} candidates.")
+    return valid_samples
 
 def build_command(sample, journalFile, freeCadExecpath):
     cmd = [freeCadExecpath, journalFile, json.dumps(sample),] 
@@ -123,7 +267,7 @@ def main():
     nSamples = 15
     config = getConfig()
     # samples is a list of dictionary containing parameter:value pairs
-    samples = generateSamples(config, nSamples)
+    samples = generate_geometry_valid_samples(config, nSamples)
 
     parameter_names = list(config["dsParameterBounds"].keys())
     objective_log_path = os.path.join(os.getcwd(), "objective_evaluations.csv")
@@ -132,7 +276,12 @@ def main():
     results = []
     best_objective_so_far = None
     for eval_id, sample in enumerate(samples, start=1):
-        absorbed_energy, max_stress = calculate_objective(sample, freeCAD_journal, freeCADExecPath)
+        geometry_valid, geometry_failure_reason = geometry_constraint_report(sample)
+        if geometry_valid:
+            absorbed_energy, max_stress = calculate_objective(sample, freeCAD_journal, freeCADExecPath)
+        else:
+            print(f"Sample {sample} skipped: {geometry_failure_reason}")
+            absorbed_energy, max_stress = None, None
         valid = absorbed_energy is not None
         if valid:
             if best_objective_so_far is None:
