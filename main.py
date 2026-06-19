@@ -1,4 +1,5 @@
 # global imports
+import csv
 import json
 import math
 import numpy as np
@@ -66,6 +67,27 @@ def calculate_objective(sample, freeCAD_journal, freeCADExecPath):
 
     # return binary files for optional backward conversion to geometries
     return absorbed_energy, max_stress
+
+def initialize_objective_log(csv_path, parameter_names):
+    fieldnames = ["eval_id"] + parameter_names + ["objective_value", "valid", "best_objective_so_far"]
+    with open(csv_path, "w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+
+def log_objective_evaluation(csv_path, eval_id, sample, parameter_names, objective_value, valid, best_objective_so_far):
+    fieldnames = ["eval_id"] + parameter_names + ["objective_value", "valid", "best_objective_so_far"]
+    row = {
+        "eval_id": eval_id,
+        "objective_value": objective_value if valid else "",
+        "valid": valid,
+        "best_objective_so_far": best_objective_so_far if best_objective_so_far is not None else "",
+    }
+    for name in parameter_names:
+        row[name] = sample[name]
+
+    with open(csv_path, "a", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writerow(row)
     
 def main():
     """
@@ -103,10 +125,31 @@ def main():
     # samples is a list of dictionary containing parameter:value pairs
     samples = generateSamples(config, nSamples)
 
+    parameter_names = list(config["dsParameterBounds"].keys())
+    objective_log_path = os.path.join(os.getcwd(), "objective_evaluations.csv")
+    initialize_objective_log(objective_log_path, parameter_names)
 
     results = []
-    for sample in samples:
+    best_objective_so_far = None
+    for eval_id, sample in enumerate(samples, start=1):
         absorbed_energy, max_stress = calculate_objective(sample, freeCAD_journal, freeCADExecPath)
+        valid = absorbed_energy is not None
+        if valid:
+            if best_objective_so_far is None:
+                best_objective_so_far = absorbed_energy
+            else:
+                best_objective_so_far = max(best_objective_so_far, absorbed_energy)
+
+        log_objective_evaluation(
+            objective_log_path,
+            eval_id,
+            sample,
+            parameter_names,
+            absorbed_energy,
+            valid,
+            best_objective_so_far,
+        )
+
         if absorbed_energy is not None:
             print(f"Sample {sample} -> Absorbed Energy: {absorbed_energy}, Max Stress: {max_stress}")
             sample['energy_objective'] = absorbed_energy
