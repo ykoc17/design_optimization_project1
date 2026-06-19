@@ -7,6 +7,7 @@ import numpy as np
 import os
 import subprocess
 import scipy.stats.qmc as qmc
+import sys
 import time
 
 PLATE_SIZE = 60.0
@@ -41,6 +42,19 @@ OBJECTIVE_LOG_FIELDNAMES = [
     "srsm_subspace_fraction",
     "best_feasible_objective_so_far",
 ]
+
+class TeeStream:
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, text):
+        for stream in self.streams:
+            stream.write(text)
+        return len(text)
+
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
 
 def getConfig():
     # The dsParameterBounds names need to match the NX parameter names in the part file as well as the journal file!
@@ -825,9 +839,31 @@ def parse_args(argv=None):
         default=os.path.join(os.getcwd(), "plots", "convergence.png"),
         help="Path for the convergence plot image.",
     )
+    parser.add_argument(
+        "--output-log",
+        default=os.path.join(os.getcwd(), "output.txt"),
+        help="Path for the command-line output log.",
+    )
     return parser.parse_args(argv)
 
-def main(argv=None):
+def run_with_output_log(args, run_function):
+    output_dir = os.path.dirname(args.output_log)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    with open(args.output_log, "w", encoding="utf-8") as output_log:
+        original_stdout = sys.stdout
+        original_stderr = sys.stderr
+        sys.stdout = TeeStream(original_stdout, output_log)
+        sys.stderr = TeeStream(original_stderr, output_log)
+        try:
+            print(f"Writing command-line output to {args.output_log}")
+            return run_function()
+        finally:
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
+
+def run_optimizer(args):
     """
     Run a budgeted successive response surface optimization loop.
 
@@ -836,7 +872,6 @@ def main(argv=None):
     most promising predictions with FreeCAD, then moves and shrinks the next
     active region around the best feasible FEM result.
     """
-    args = parse_args(argv)
     if args.plot_only:
         save_convergence_plot(args.csv_path, args.plot_output)
         return
@@ -1129,6 +1164,10 @@ def main(argv=None):
         print(f"Best feasible objective: {best_feasible_objective_so_far}")
 
     save_convergence_plot(objective_log_path, args.plot_output)
+
+def main(argv=None):
+    args = parse_args(argv)
+    return run_with_output_log(args, lambda: run_optimizer(args))
 
 
 

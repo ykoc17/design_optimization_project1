@@ -16,7 +16,7 @@
     "initial_doe_size": 10,
     "max_fem_evaluations": 25,
     "surrogate_candidate_pool_size": 200,
-    "surrogate_batch_size": 2,
+    "surrogate_batch_size": 1,
     "min_surrogate_training_points": 8,
     "max_candidate_attempts": 10000,
     "cache_round_decimals": 6,
