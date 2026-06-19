@@ -1,0 +1,10 @@
+Optimization Project Changelog V1 -> V2
+
+- Better signaling in the documentation to use FreeCAD version 1.0.x and not 1.1
+- Improved compatibility with Mac and Linux for more intuitive setup.
+- Introduced coordinate system in the documentation for consistent parameter definition.
+- Changed origin of the FreeCAD sketch to avoid negative values for x and y parameters, as there were 
+  some issues with FreeCAD from time to time when switching from positive to negative values.
+- Improved robustness of the parametrization of the oval cutout in the FreeCAD sketch.
+- Fixed an issue with the error handling, which could caused the automation to output
+  the values of the previous configuration instead of throwing an error and discarding the result.
