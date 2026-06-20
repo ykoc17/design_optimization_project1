@@ -1,175 +1,201 @@
 Writing command-line output to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\output.txt
-Generating initial DOE with 10 geometry-valid samples.
-Generated 10 unique geometry-valid samples from full design space after 16 candidates.
+Generating initial DOE with 5 geometry-valid samples.
+Generated 5 unique geometry-valid samples from full design space after 7 candidates.
 DOE candidate 1: FEM evaluation 1/25
-Sample {'x1': 41.31288615074681, 'y1': 45.43270109100435, 'x2': 40.966066993833344, 'y2': 25.81946258574605, 'x3': 22.688693050802367, 'y3': 28.12429474325594, 'angle': 66.57143260409725} -> Absorbed Energy: 12379.889606492477, Max Stress: 316.057
+Sample {'x1': 39.78839140787255, 'y1': 46.58270995516019, 'x2': 40.310043019864764, 'y2': 27.716103570900707, 'x3': 19.471613262077483, 'y3': 32.49479123065809, 'angle': 66.76753638110918} -> Absorbed Energy: 12799.735901869142, Max Stress: 282.85900000000004
 DOE candidate 2: FEM evaluation 2/25
-Sample {'x1': 41.66619393044015, 'y1': 46.36897612232247, 'x2': 40.37917845435037, 'y2': 26.18936310023606, 'x3': 17.350721106176696, 'y3': 31.382646941135388, 'angle': 68.6675985852455} -> Absorbed Energy: 12756.38901847108, Max Stress: 257.4655
+Sample {'x1': 42.706270856552074, 'y1': 45.550582365298055, 'x2': 46.26034256540829, 'y2': 26.40080632456514, 'x3': 22.57995195188493, 'y3': 31.96166214992565, 'angle': 63.882665538080445} -> Absorbed Energy: 12920.758863823343, Max Stress: 239.7235
 DOE candidate 3: FEM evaluation 3/25
-Sample {'x1': 42.0146431983736, 'y1': 46.257742543620225, 'x2': 45.016409737380144, 'y2': 26.887033627471673, 'x3': 22.106016452573165, 'y3': 29.308053218023744, 'angle': 62.40189726402897} -> Absorbed Energy: 12680.863242642221, Max Stress: 259.96675000000005
+Sample {'x1': 43.44175525978575, 'y1': 45.98815778914935, 'x2': 46.740778606615756, 'y2': 25.138156863674983, 'x3': 20.585818957326534, 'y3': 29.642545922127482, 'angle': 72.16273542901631} -> Absorbed Energy: 12911.333008033665, Max Stress: 234.60925
 DOE candidate 4: FEM evaluation 4/25
-Sample {'x1': 41.20647793330636, 'y1': 45.47439395129156, 'x2': 46.337014375889375, 'y2': 28.063043215765877, 'x3': 18.33237284188843, 'y3': 29.48007401864801, 'angle': 66.96381138190615} -> Absorbed Energy: 12867.258769413724, Max Stress: 237.058
+Sample {'x1': 41.18873309703009, 'y1': 46.65061078911455, 'x2': 44.39827914067872, 'y2': 22.58458458156525, 'x3': 22.248600841679004, 'y3': 30.39579959461072, 'angle': 71.40605696761452} -> Absorbed Energy: 12660.357866765387, Max Stress: 244.801
 DOE candidate 5: FEM evaluation 5/25
-Sample {'x1': 41.93257755087492, 'y1': 47.496350895803204, 'x2': 42.883389968821014, 'y2': 26.55248341428239, 'x3': 22.361086222872792, 'y3': 28.853107921733237, 'angle': 72.19141057182514} -> Absorbed Energy: 12516.151808519602, Max Stress: 247.4905
-DOE candidate 6: FEM evaluation 6/25
-Sample {'x1': 39.46686439393912, 'y1': 45.64220262572405, 'x2': 46.679525405137674, 'y2': 27.831002149733802, 'x3': 21.169217640775646, 'y3': 30.831311328918492, 'angle': 65.6801250993118} -> Absorbed Energy: 12733.736267282136, Max Stress: 254.18425000000002
-DOE candidate 7: FEM evaluation 7/25
-Sample {'x1': 41.47752130646864, 'y1': 47.290824523955926, 'x2': 45.3649609953694, 'y2': 24.36350921128393, 'x3': 20.36751723408579, 'y3': 30.753139756828702, 'angle': 68.84243898146772} -> Absorbed Energy: 12777.852562384534, Max Stress: 234.556
-DOE candidate 8: FEM evaluation 8/25
-Sample {'x1': 39.927676700874926, 'y1': 47.68276161220781, 'x2': 43.14009482070762, 'y2': 27.663247957310062, 'x3': 19.52605751428975, 'y3': 32.30773900015766, 'angle': 66.64740061770496} -> Absorbed Energy: 12824.248533257627, Max Stress: 235.2295
-DOE candidate 9: FEM evaluation 9/25
-Sample {'x1': 43.187473723081915, 'y1': 48.28876064015157, 'x2': 43.52522558127367, 'y2': 22.249179772590953, 'x3': 17.489141669440603, 'y3': 32.2202655928301, 'angle': 71.31124207181797} -> Absorbed Energy: 12854.055548672126, Max Stress: 232.14325
-DOE candidate 10: FEM evaluation 10/25
-Sample {'x1': 41.15332188030976, 'y1': 48.44143154596561, 'x2': 41.92048345746808, 'y2': 25.743397202266163, 'x3': 17.00679228511409, 'y3': 30.45459270701498, 'angle': 70.74860728301942} -> Absorbed Energy: 12745.613818973232, Max Stress: 237.64525
-Generated 200 unique geometry-valid samples from active sub-design space after 217 candidates.
-SRSM iteration 1: fitted linear energy response surface with 9 feasible FEM points from full design history (8 features).
-SRSM iteration 1: fitted linear stress response surface with 10 FEM-valid points from full design history (8 features).
-SRSM iteration 1: active sub-design fraction 0.8; best predicted absorbed energy is 13149.1, predicted max stress is 171.139, acquisition score is 13149.1; evaluating top 1 candidates.
-SRSM iteration 1: active bounds x1=[39, 43.8], y1=[45, 49.4], x2=[41.4, 47], y2=[23.3, 28.5], x3=[17, 21.8], y3=[27.5, 31.9], angle=[62.6, 71.4]
-SRSM iteration 1 candidate 11: FEM evaluation 11/25
-Sample {'x1': 43.57269564205497, 'y1': 48.82614734469122, 'x2': 46.014045802053694, 'y2': 28.245624461003185, 'x3': 17.33420980714483, 'y3': 31.596338621945023, 'angle': 63.22656053595784} -> Absorbed Energy: 12776.531982348677, Max Stress: 261.40225
-SRSM iteration 1: best computed absorbed energy 12776.5; did not improve; next sub-design fraction 0.56; no-improvement streak 1/5.
+Sample {'x1': 43.30274642414941, 'y1': 47.194748287813745, 'x2': 43.57597284207618, 'y2': 24.33429954218756, 'x3': 17.08974185193484, 'y3': 28.92503008624578, 'angle': 72.52018382254072} -> Absorbed Energy: 12827.410026039044, Max Stress: 230.56975
+Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png; no SRSM ROI bounds were found in the CSV.
+Only 4 feasible FEM points are available; using geometry-valid LHS exploration before fitting the response surface.
+Generated 1 unique geometry-valid samples from full design space after 1 candidates.
+Exploration candidate 6: FEM evaluation 6/25
+Sample {'x1': 39.971088476537545, 'y1': 47.269413601571905, 'x2': 44.65428270712354, 'y2': 24.169592136846415, 'x3': 17.482254681459768, 'y3': 28.64985253788136, 'angle': 67.36926378642652} -> Absorbed Energy: 12615.667223204584, Max Stress: 242.32075
+Only 5 feasible FEM points are available; using geometry-valid LHS exploration before fitting the response surface.
+Generated 1 unique geometry-valid samples from full design space after 1 candidates.
+Exploration candidate 7: FEM evaluation 7/25
+Sample {'x1': 44.8240455360284, 'y1': 48.299081361290554, 'x2': 44.722263419180415, 'y2': 26.327158510157833, 'x3': 20.831020237976567, 'y3': 29.9363091427329, 'angle': 72.34096435668317} -> Absorbed Energy: 12744.294123054055, Max Stress: 236.197
+Only 6 feasible FEM points are available; using geometry-valid LHS exploration before fitting the response surface.
+Generated 1 unique geometry-valid samples from full design space after 1 candidates.
+Exploration candidate 8: FEM evaluation 8/25
+Sample {'x1': 39.09594665233045, 'y1': 47.801998035283546, 'x2': 40.60861422022886, 'y2': 22.011151868186932, 'x3': 19.46863230946974, 'y3': 28.32710679107108, 'angle': 71.73725685942698} -> Absorbed Energy: 12306.656017471576, Max Stress: 257.449
+Only 7 feasible FEM points are available; using geometry-valid LHS exploration before fitting the response surface.
+Generated 1 unique geometry-valid samples from full design space after 1 candidates.
+Exploration candidate 9: FEM evaluation 9/25
+Sample {'x1': 44.25381921321416, 'y1': 48.36924692580186, 'x2': 44.75307324276911, 'y2': 23.146333851121465, 'x3': 22.194091644600398, 'y3': 32.00254229585713, 'angle': 65.46679594393093} -> Absorbed Energy: 12636.805017881454, Max Stress: 272.3695
+Generated 200 unique geometry-valid samples from active sub-design space after 268 candidates.
+SRSM iteration 1: fitted linear energy response surface with 8 feasible FEM points from active sub-design space (8 features).
+SRSM iteration 1: fitted linear stress response surface with 9 FEM-valid points from active sub-design space (8 features).
+SRSM iteration 1: active sub-design fraction 1; best predicted absorbed energy is 13370.2, predicted max stress is 257.909, acquisition score is 13370.2; evaluating top 1 candidates.
+SRSM iteration 1: active bounds x1=[39, 45], y1=[45, 50.5], x2=[40, 47], y2=[22, 28.5], x3=[17, 23], y3=[27.5, 33], angle=[62, 73]
+SRSM iteration 1 candidate 10: FEM evaluation 10/25
+Sample {'x1': 44.85660709151817, 'y1': 46.399612398653304, 'x2': 42.58373074222566, 'y2': 26.98148666440732, 'x3': 17.47585347786478, 'y3': 32.19608527425925, 'angle': 71.33920808652026} -> Absorbed Energy: 12806.121013620226, Max Stress: 242.73925
+SRSM iteration 1: best computed absorbed energy 12806.1; did not improve; next sub-design fraction 0.7; no-improvement streak 1/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (1 SRSM iterations from 1 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (1 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 2: fitted linear energy response surface with 10 feasible FEM points from full design history (8 features).
-SRSM iteration 2: fitted linear stress response surface with 11 FEM-valid points from full design history (8 features).
-SRSM iteration 2: active sub-design fraction 0.56; best predicted absorbed energy is 12932.2, predicted max stress is 242.775, acquisition score is 12932.2; evaluating top 1 candidates.
-SRSM iteration 2: active bounds x1=[39.5, 42.9], y1=[45, 48.1], x2=[43.1, 47], y2=[24.9, 28.5], x3=[17, 20.4], y3=[27.9, 31], angle=[63.9, 70]
-SRSM iteration 2 candidate 12: FEM evaluation 12/25
-Sample {'x1': 41.843774525479034, 'y1': 46.206045745023964, 'x2': 45.94500928996417, 'y2': 24.860614604917895, 'x3': 17.03220095977347, 'y3': 30.684135662654427, 'angle': 66.22738873615714} -> Absorbed Energy: 12868.075939019678, Max Stress: 253.1395
-SRSM iteration 2: best computed absorbed energy 12868.1; improved; next sub-design fraction 0.476; no-improvement streak 0/5.
+SRSM iteration 2: fitted linear energy response surface with 9 feasible FEM points from full design history (8 features).
+SRSM iteration 2: fitted linear stress response surface with 10 FEM-valid points from full design history (8 features).
+SRSM iteration 2: active sub-design fraction 0.7; best predicted absorbed energy is 13205.7, predicted max stress is 210.612, acquisition score is 13205.7; evaluating top 1 candidates.
+SRSM iteration 2: active bounds x1=[40.6, 44.8], y1=[45, 48.8], x2=[42.1, 47], y2=[24, 28.5], x3=[18.8, 23], y3=[29.2, 33], angle=[62, 69.7]
+SRSM iteration 2 candidate 11: FEM evaluation 11/25
+Sample {'x1': 44.5890781162071, 'y1': 45.11927427584269, 'x2': 46.919396696464894, 'y2': 26.47912987407812, 'x3': 19.890216693966106, 'y3': 30.014313181147482, 'angle': 64.79555105346292} -> Absorbed Energy: 12931.803221981574, Max Stress: 231.697
+SRSM iteration 2: best computed absorbed energy 12931.8; improved; next sub-design fraction 0.595; no-improvement streak 0/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (2 SRSM iterations from 2 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (2 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 3: fitted linear energy response surface with 11 feasible FEM points from full design history (8 features).
-SRSM iteration 3: fitted linear stress response surface with 12 FEM-valid points from full design history (8 features).
-SRSM iteration 3: active sub-design fraction 0.476; best predicted absorbed energy is 12981.5, predicted max stress is 256.901, acquisition score is 12981.5; evaluating top 1 candidates.
-SRSM iteration 3: active bounds x1=[40.4, 43.3], y1=[45, 47.6], x2=[43.7, 47], y2=[23.3, 26.4], x3=[17, 19.9], y3=[29.4, 32], angle=[63.6, 68.8]
-SRSM iteration 3 candidate 13: FEM evaluation 13/25
-Sample {'x1': 41.94130192627075, 'y1': 45.015448698132914, 'x2': 45.86259257900137, 'y2': 23.64364415401976, 'x3': 17.042360301761196, 'y3': 31.929809162414188, 'angle': 64.37151459222824} -> Absorbed Energy: 12813.393511437833, Max Stress: 261.77875
-SRSM iteration 3: best computed absorbed energy 12813.4; did not improve; next sub-design fraction 0.333; no-improvement streak 1/5.
+SRSM iteration 3: fitted linear energy response surface with 10 feasible FEM points from full design history (8 features).
+SRSM iteration 3: fitted linear stress response surface with 11 FEM-valid points from full design history (8 features).
+SRSM iteration 3: active sub-design fraction 0.595; best predicted absorbed energy is 12989.9, predicted max stress is 234.398, acquisition score is 12989.9; evaluating top 1 candidates.
+SRSM iteration 3: active bounds x1=[41.4, 45], y1=[45, 48.3], x2=[42.8, 47], y2=[24.5, 28.4], x3=[18.1, 21.7], y3=[28.4, 31.7], angle=[62, 68.5]
+SRSM iteration 3 candidate 12: FEM evaluation 12/25
+Sample {'x1': 43.83841602503559, 'y1': 45.07681456814706, 'x2': 46.71930402495394, 'y2': 27.573604152605007, 'x3': 20.442682201903825, 'y3': 31.243456230599968, 'angle': 65.8103531823841} -> Absorbed Energy: 13006.426749890445, Max Stress: 229.33675
+SRSM iteration 3: best computed absorbed energy 13006.4; improved; next sub-design fraction 0.506; no-improvement streak 0/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (3 SRSM iterations from 3 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (3 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 4: fitted linear energy response surface with 12 feasible FEM points from full design history (8 features).
-SRSM iteration 4: fitted linear stress response surface with 13 FEM-valid points from full design history (8 features).
-SRSM iteration 4: active sub-design fraction 0.333; best predicted absorbed energy is 12888.2, predicted max stress is 246.076, acquisition score is 12888.2; evaluating top 1 candidates.
-SRSM iteration 4: active bounds x1=[40.8, 42.8], y1=[45.3, 47.1], x2=[44.7, 47], y2=[23.8, 25.9], x3=[17, 19], y3=[29.8, 31.6], angle=[64.4, 68.1]
-SRSM iteration 4 candidate 14: FEM evaluation 14/25
-Sample {'x1': 41.17727155840724, 'y1': 46.59590115362179, 'x2': 46.78394332458679, 'y2': 23.89361078942735, 'x3': 17.843093669689118, 'y3': 31.51768336661742, 'angle': 64.67067674991664} -> Absorbed Energy: 12822.754426904443, Max Stress: 249.33775
-SRSM iteration 4: best computed absorbed energy 12822.8; did not improve; next sub-design fraction 0.233; no-improvement streak 2/5.
+SRSM iteration 4: fitted linear energy response surface with 11 feasible FEM points from full design history (8 features).
+SRSM iteration 4: fitted linear stress response surface with 12 FEM-valid points from full design history (8 features).
+SRSM iteration 4: active sub-design fraction 0.506; best predicted absorbed energy is 13016.7, predicted max stress is 231.444, acquisition score is 13016.7; evaluating top 1 candidates.
+SRSM iteration 4: active bounds x1=[42, 45], y1=[45, 47.8], x2=[43.5, 47], y2=[25.2, 28.5], x3=[18.9, 22], y3=[29.9, 32.6], angle=[63, 68.6]
+SRSM iteration 4 candidate 13: FEM evaluation 13/25
+Sample {'x1': 43.49768321873918, 'y1': 45.13963085273429, 'x2': 46.60865885001155, 'y2': 28.487402441584976, 'x3': 20.967668321478573, 'y3': 31.517783632561862, 'angle': 68.36938155930457} -> Absorbed Energy: 13062.483654599113, Max Stress: 227.47675
+SRSM iteration 4: best computed absorbed energy 13062.5; improved; next sub-design fraction 0.43; no-improvement streak 0/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (4 SRSM iterations from 4 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (4 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 5: fitted linear energy response surface with 13 feasible FEM points from full design history (8 features).
-SRSM iteration 5: fitted linear stress response surface with 14 FEM-valid points from full design history (8 features).
-SRSM iteration 5: active sub-design fraction 0.233; best predicted absorbed energy is 12878.2, predicted max stress is 249.8, acquisition score is 12878.2; evaluating top 1 candidates.
-SRSM iteration 5: active bounds x1=[41.1, 42.5], y1=[45.6, 46.8], x2=[45.1, 46.8], y2=[24.1, 25.6], x3=[17, 18.4], y3=[30, 31.3], angle=[64.9, 67.5]
-SRSM iteration 5 candidate 15: FEM evaluation 15/25
-Sample {'x1': 41.2668602115708, 'y1': 45.56676748958222, 'x2': 46.43519786817537, 'y2': 24.425295156209984, 'x3': 17.010314195242344, 'y3': 31.291826506990272, 'angle': 65.31986969334102} -> Absorbed Energy: 12850.04824688314, Max Stress: 257.5195
-SRSM iteration 5: best computed absorbed energy 12850; did not improve; next sub-design fraction 0.163; no-improvement streak 3/5.
+SRSM iteration 5: fitted linear energy response surface with 12 feasible FEM points from full design history (8 features).
+SRSM iteration 5: fitted linear stress response surface with 13 FEM-valid points from full design history (8 features).
+SRSM iteration 5: active sub-design fraction 0.43; best predicted absorbed energy is 13065.8, predicted max stress is 231.325, acquisition score is 13065.8; evaluating top 1 candidates.
+SRSM iteration 5: active bounds x1=[42.2, 44.8], y1=[45, 47.4], x2=[44, 47], y2=[25.7, 28.5], x3=[19.7, 22.3], y3=[30.3, 32.7], angle=[66, 70.7]
+SRSM iteration 5 candidate 14: FEM evaluation 14/25
+Sample {'x1': 44.32987870864586, 'y1': 45.30954162015247, 'x2': 46.769946091015385, 'y2': 27.79505392171853, 'x3': 21.520623623094327, 'y3': 32.14214110141565, 'angle': 69.4724084529734} -> Absorbed Energy: 13080.848047215455, Max Stress: 223.6015
+SRSM iteration 5: best computed absorbed energy 13080.8; improved; next sub-design fraction 0.365; no-improvement streak 0/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (5 SRSM iterations from 5 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (5 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 6: fitted linear energy response surface with 14 feasible FEM points from full design history (8 features).
-SRSM iteration 6: fitted linear stress response surface with 15 FEM-valid points from full design history (8 features).
-SRSM iteration 6: active sub-design fraction 0.163; best predicted absorbed energy is 12856.5, predicted max stress is 244.978, acquisition score is 12856.5; evaluating top 1 candidates.
-SRSM iteration 6: active bounds x1=[41.4, 42.3], y1=[45.8, 46.7], x2=[45.4, 46.5], y2=[24.3, 25.4], x3=[17, 18], y3=[30.2, 31.1], angle=[65.3, 67.1]
-SRSM iteration 6 candidate 16: FEM evaluation 16/25
-Sample {'x1': 41.573068480448, 'y1': 45.9773711176574, 'x2': 46.19051600813567, 'y2': 24.651350283732285, 'x3': 17.112949369617887, 'y3': 31.11218078809176, 'angle': 66.88720226619374} -> Absorbed Energy: 12894.925489812455, Max Stress: 250.699
-SRSM iteration 6: best computed absorbed energy 12894.9; improved; next sub-design fraction 0.15; no-improvement streak 0/5.
+SRSM iteration 6: fitted linear energy response surface with 13 feasible FEM points from full design history (8 features).
+SRSM iteration 6: fitted linear stress response surface with 14 FEM-valid points from full design history (8 features).
+SRSM iteration 6: active sub-design fraction 0.365; best predicted absorbed energy is 13116.6, predicted max stress is 227.467, acquisition score is 13116.6; evaluating top 1 candidates.
+SRSM iteration 6: active bounds x1=[42.8, 45], y1=[45, 47], x2=[44.4, 47], y2=[26.1, 28.5], x3=[20.4, 22.6], y3=[31, 33], angle=[67.5, 71.5]
+SRSM iteration 6 candidate 15: FEM evaluation 15/25
+Sample {'x1': 44.542099779217686, 'y1': 45.008751372855876, 'x2': 46.799867618089316, 'y2': 26.69731722480892, 'x3': 21.189934772385758, 'y3': 32.727612385344834, 'angle': 70.88250894337183} -> Absorbed Energy: 13093.619422040227, Max Stress: 223.02325000000002
+SRSM iteration 6: best computed absorbed energy 13093.6; improved; next sub-design fraction 0.311; no-improvement streak 0/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (6 SRSM iterations from 6 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (6 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 7: fitted linear energy response surface with 15 feasible FEM points from full design history (8 features).
-SRSM iteration 7: fitted linear stress response surface with 16 FEM-valid points from full design history (8 features).
-SRSM iteration 7: active sub-design fraction 0.15; best predicted absorbed energy is 12879.5, predicted max stress is 238.35, acquisition score is 12879.5; evaluating top 1 candidates.
-SRSM iteration 7: active bounds x1=[41.1, 42], y1=[45.6, 46.4], x2=[45.7, 46.7], y2=[24.2, 25.1], x3=[17, 17.9], y3=[30.7, 31.5], angle=[66.1, 67.7]
-SRSM iteration 7 candidate 17: FEM evaluation 17/25
-Sample {'x1': 41.21088571829814, 'y1': 45.90558207811133, 'x2': 46.69696915623246, 'y2': 25.054853881729592, 'x3': 17.394376513076573, 'y3': 31.473535578506198, 'angle': 67.13796649677218} -> Absorbed Energy: 12905.75875326403, Max Stress: 248.05975
-SRSM iteration 7: best computed absorbed energy 12905.8; improved; next sub-design fraction 0.15; no-improvement streak 0/5.
+SRSM iteration 7: fitted linear energy response surface with 14 feasible FEM points from full design history (8 features).
+SRSM iteration 7: fitted linear stress response surface with 15 FEM-valid points from full design history (8 features).
+SRSM iteration 7: active sub-design fraction 0.311; best predicted absorbed energy is 13107.5, predicted max stress is 225.3, acquisition score is 13107.5; evaluating top 1 candidates.
+SRSM iteration 7: active bounds x1=[43.1, 45], y1=[45, 46.7], x2=[44.8, 47], y2=[25.7, 27.7], x3=[20.3, 22.1], y3=[31.3, 33], angle=[69.2, 72.6]
+SRSM iteration 7 candidate 16: FEM evaluation 16/25
+Sample {'x1': 43.60295671763643, 'y1': 45.15843406558149, 'x2': 46.983081413054165, 'y2': 27.196105786111175, 'x3': 21.417806526735465, 'y3': 32.75979917579609, 'angle': 71.38811032476822} -> Absorbed Energy: 13110.135777056958, Max Stress: 228.3295
+SRSM iteration 7: best computed absorbed energy 13110.1; improved; next sub-design fraction 0.264; no-improvement streak 0/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (7 SRSM iterations from 7 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (7 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 8: fitted linear energy response surface with 16 feasible FEM points from full design history (8 features).
-SRSM iteration 8: fitted linear stress response surface with 17 FEM-valid points from full design history (8 features).
-SRSM iteration 8: active sub-design fraction 0.15; best predicted absorbed energy is 12914.6, predicted max stress is 234.672, acquisition score is 12914.6; evaluating top 1 candidates.
-SRSM iteration 8: active bounds x1=[40.8, 41.7], y1=[45.5, 46.3], x2=[46, 47], y2=[24.6, 25.5], x3=[17, 17.9], y3=[31.1, 31.9], angle=[66.3, 68]
-SRSM iteration 8 candidate 18: FEM evaluation 18/25
-Sample {'x1': 40.80134871935839, 'y1': 45.53334535388805, 'x2': 46.98286952441069, 'y2': 24.647904420853717, 'x3': 17.280295035512474, 'y3': 31.848075130748075, 'angle': 67.87131964187515} -> Absorbed Energy: 12913.507386526097, Max Stress: 246.139
-SRSM iteration 8: best computed absorbed energy 12913.5; improved; next sub-design fraction 0.15; no-improvement streak 0/5.
+SRSM iteration 8: fitted linear energy response surface with 15 feasible FEM points from full design history (8 features).
+SRSM iteration 8: fitted linear stress response surface with 16 FEM-valid points from full design history (8 features).
+SRSM iteration 8: active sub-design fraction 0.264; best predicted absorbed energy is 13133.5, predicted max stress is 225.046, acquisition score is 13133.5; evaluating top 1 candidates.
+SRSM iteration 8: active bounds x1=[42.8, 44.4], y1=[45, 46.5], x2=[45.2, 47], y2=[26.3, 28.1], x3=[20.6, 22.2], y3=[31.5, 33], angle=[69.9, 72.8]
+SRSM iteration 8 candidate 17: FEM evaluation 17/25
+Sample {'x1': 43.28883661177061, 'y1': 45.09516961030178, 'x2': 46.911084343268804, 'y2': 27.487980427434252, 'x3': 21.112895679774947, 'y3': 32.98603701789603, 'angle': 72.42305945551477} -> Absorbed Energy: 13110.251929884978, Max Stress: 231.7885
+SRSM iteration 8: best computed absorbed energy 13110.3; improved; next sub-design fraction 0.224; no-improvement streak 0/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (8 SRSM iterations from 8 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (8 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 9: fitted linear energy response surface with 17 feasible FEM points from full design history (8 features).
-SRSM iteration 9: fitted linear stress response surface with 18 FEM-valid points from full design history (8 features).
-SRSM iteration 9: active sub-design fraction 0.15; best predicted absorbed energy is 12932.5, predicted max stress is 234.701, acquisition score is 12932.5; evaluating top 1 candidates.
-SRSM iteration 9: active bounds x1=[40.4, 41.3], y1=[45.1, 45.9], x2=[46, 47], y2=[24.2, 25.1], x3=[17, 17.9], y3=[31.4, 32.3], angle=[67, 68.7]
-SRSM iteration 9 candidate 19: FEM evaluation 19/25
-Sample {'x1': 40.68796811539334, 'y1': 45.12189096923236, 'x2': 46.869667870604665, 'y2': 24.903514104348176, 'x3': 17.204781100341588, 'y3': 32.24033876314263, 'angle': 68.60781735751675} -> Absorbed Energy: 12915.180817707864, Max Stress: 244.86625
-SRSM iteration 9: best computed absorbed energy 12915.2; improved; next sub-design fraction 0.15; no-improvement streak 0/5.
+SRSM iteration 9: fitted linear energy response surface with 16 feasible FEM points from full design history (8 features).
+SRSM iteration 9: fitted linear stress response surface with 17 FEM-valid points from full design history (8 features).
+SRSM iteration 9: active sub-design fraction 0.224; best predicted absorbed energy is 13130.4, predicted max stress is 225.98, acquisition score is 13130.4; evaluating top 1 candidates.
+SRSM iteration 9: active bounds x1=[42.6, 44], y1=[45, 46.2], x2=[45.4, 47], y2=[26.8, 28.2], x3=[20.4, 21.8], y3=[31.8, 33], angle=[70.5, 73]
+SRSM iteration 9 candidate 18: FEM evaluation 18/25
+Sample {'x1': 43.640409632026326, 'y1': 45.04093836115985, 'x2': 46.90269730973028, 'y2': 27.761090729614043, 'x3': 21.57032201542375, 'y3': 32.89805311583513, 'angle': 72.66198579803975} -> Absorbed Energy: 13129.16457630811, Max Stress: 232.546
+SRSM iteration 9: best computed absorbed energy 13129.2; improved; next sub-design fraction 0.191; no-improvement streak 0/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (9 SRSM iterations from 9 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (9 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 10: fitted linear energy response surface with 18 feasible FEM points from full design history (8 features).
-SRSM iteration 10: fitted linear stress response surface with 19 FEM-valid points from full design history (8 features).
-SRSM iteration 10: active sub-design fraction 0.15; best predicted absorbed energy is 12935.5, predicted max stress is 234.318, acquisition score is 12935.5; evaluating top 1 candidates.
-SRSM iteration 10: active bounds x1=[40.2, 41.1], y1=[45, 45.8], x2=[46, 47], y2=[24.4, 25.4], x3=[17, 17.9], y3=[31.8, 32.7], angle=[67.8, 69.4]
-SRSM iteration 10 candidate 20: FEM evaluation 20/25
-Sample {'x1': 40.245909982685596, 'y1': 45.76492860171438, 'x2': 46.50369032796578, 'y2': 24.52645479883085, 'x3': 17.011123339101704, 'y3': 32.64362329015752, 'angle': 68.23517823856425} -> Absorbed Energy: 12893.841726136063, Max Stress: 248.66875000000002
-SRSM iteration 10: best computed absorbed energy 12893.8; did not improve; next sub-design fraction 0.15; no-improvement streak 1/5.
+SRSM iteration 10: fitted linear energy response surface with 17 feasible FEM points from full design history (8 features).
+SRSM iteration 10: fitted linear stress response surface with 18 FEM-valid points from full design history (8 features).
+SRSM iteration 10: active sub-design fraction 0.191; best predicted absorbed energy is 13136.6, predicted max stress is 227.48, acquisition score is 13136.6; evaluating top 1 candidates.
+SRSM iteration 10: active bounds x1=[43.1, 44.2], y1=[45, 46], x2=[45.7, 47], y2=[27.1, 28.4], x3=[21, 22.1], y3=[32, 33], angle=[70.9, 73]
+SRSM iteration 10 candidate 19: FEM evaluation 19/25
+Sample {'x1': 43.76530848936879, 'y1': 45.237813831637354, 'x2': 46.93097284280141, 'y2': 28.31558413649118, 'x3': 21.259196634097968, 'y3': 32.81687480513375, 'angle': 72.5156345077241} -> Absorbed Energy: 13123.827952254112, Max Stress: 233.434
+SRSM iteration 10: best computed absorbed energy 13123.8; did not improve; next sub-design fraction 0.15; no-improvement streak 1/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (10 SRSM iterations from 10 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (10 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 11: fitted linear energy response surface with 19 feasible FEM points from full design history (8 features).
-SRSM iteration 11: fitted linear stress response surface with 20 FEM-valid points from full design history (8 features).
-SRSM iteration 11: active sub-design fraction 0.15; best predicted absorbed energy is 12932.5, predicted max stress is 232.987, acquisition score is 12932.5; evaluating top 1 candidates.
-SRSM iteration 11: active bounds x1=[40.2, 41.1], y1=[45, 45.8], x2=[46, 47], y2=[24.4, 25.4], x3=[17, 17.9], y3=[31.8, 32.7], angle=[67.8, 69.4]
-SRSM iteration 11 candidate 21: FEM evaluation 21/25
-Sample {'x1': 40.35675724403707, 'y1': 45.40741214987464, 'x2': 46.98609777084182, 'y2': 25.304724945424137, 'x3': 17.138675878404346, 'y3': 32.578866838231306, 'angle': 69.38324603515301} -> Absorbed Energy: 12914.209609940537, Max Stress: 243.32649999999998
-SRSM iteration 11: best computed absorbed energy 12914.2; did not improve; next sub-design fraction 0.15; no-improvement streak 2/5.
+SRSM iteration 11: fitted linear energy response surface with 18 feasible FEM points from full design history (8 features).
+SRSM iteration 11: fitted linear stress response surface with 19 FEM-valid points from full design history (8 features).
+SRSM iteration 11: active sub-design fraction 0.15; best predicted absorbed energy is 13121.9, predicted max stress is 229.089, acquisition score is 13121.9; evaluating top 1 candidates.
+SRSM iteration 11: active bounds x1=[43.2, 44.1], y1=[45, 45.8], x2=[46, 47], y2=[27.3, 28.2], x3=[21.1, 22], y3=[32.2, 33], angle=[71.3, 73]
+SRSM iteration 11 candidate 20: FEM evaluation 20/25
+Sample {'x1': 44.08832318093259, 'y1': 45.00557220257468, 'x2': 46.59387879751722, 'y2': 28.240285912777754, 'x3': 21.861344527620105, 'y3': 32.96731096633831, 'angle': 72.45369077600587} -> Absorbed Energy: 13132.462817118907, Max Stress: 228.90324999999999
+SRSM iteration 11: best computed absorbed energy 13132.5; improved; next sub-design fraction 0.15; no-improvement streak 0/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (11 SRSM iterations from 11 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (11 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 12: fitted linear energy response surface with 20 feasible FEM points from full design history (8 features).
-SRSM iteration 12: fitted linear stress response surface with 21 FEM-valid points from full design history (8 features).
-SRSM iteration 12: active sub-design fraction 0.15; best predicted absorbed energy is 12921.9, predicted max stress is 242.855, acquisition score is 12921.9; evaluating top 1 candidates.
-SRSM iteration 12: active bounds x1=[40.2, 41.1], y1=[45, 45.8], x2=[46, 47], y2=[24.4, 25.4], x3=[17, 17.9], y3=[31.8, 32.7], angle=[67.8, 69.4]
-SRSM iteration 12 candidate 22: FEM evaluation 22/25
-Sample {'x1': 40.296074405192066, 'y1': 45.12526606282774, 'x2': 46.56986667719599, 'y2': 25.22669308008046, 'x3': 17.0982991989973, 'y3': 32.58875432552594, 'angle': 68.42570902476912} -> Absorbed Energy: 12903.078937048294, Max Stress: 248.62675000000002
-SRSM iteration 12: best computed absorbed energy 12903.1; did not improve; next sub-design fraction 0.15; no-improvement streak 3/5.
+SRSM iteration 12: fitted linear energy response surface with 19 feasible FEM points from full design history (8 features).
+SRSM iteration 12: fitted linear stress response surface with 20 FEM-valid points from full design history (8 features).
+SRSM iteration 12: active sub-design fraction 0.15; best predicted absorbed energy is 13141.5, predicted max stress is 227.164, acquisition score is 13141.5; evaluating top 1 candidates.
+SRSM iteration 12: active bounds x1=[43.6, 44.5], y1=[45, 45.8], x2=[46, 47], y2=[27.5, 28.5], x3=[21.4, 22.3], y3=[32.2, 33], angle=[71.3, 73]
+SRSM iteration 12 candidate 21: FEM evaluation 21/25
+Sample {'x1': 44.413579571017344, 'y1': 45.15188961228007, 'x2': 46.951586950133674, 'y2': 28.44573794071662, 'x3': 22.013390129580298, 'y3': 32.81256979328848, 'angle': 72.47417820718385} -> Absorbed Energy: 13134.844005669083, Max Stress: 229.25125
+SRSM iteration 12: best computed absorbed energy 13134.8; improved; next sub-design fraction 0.15; no-improvement streak 0/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (12 SRSM iterations from 12 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (12 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 13: fitted linear energy response surface with 21 feasible FEM points from full design history (8 features).
-SRSM iteration 13: fitted linear stress response surface with 22 FEM-valid points from full design history (8 features).
-SRSM iteration 13: active sub-design fraction 0.15; best predicted absorbed energy is 12924.1, predicted max stress is 241.525, acquisition score is 12924.1; evaluating top 1 candidates.
-SRSM iteration 13: active bounds x1=[40.2, 41.1], y1=[45, 45.8], x2=[46, 47], y2=[24.4, 25.4], x3=[17, 17.9], y3=[31.8, 32.7], angle=[67.8, 69.4]
-SRSM iteration 13 candidate 23: FEM evaluation 23/25
-Sample {'x1': 40.387055423617156, 'y1': 45.32432222562265, 'x2': 46.93981856804615, 'y2': 24.54206622884181, 'x3': 17.05776259613952, 'y3': 32.56676135663285, 'angle': 68.45592408980905} -> Absorbed Energy: 12899.561168600516, Max Stress: 247.468
-SRSM iteration 13: best computed absorbed energy 12899.6; did not improve; next sub-design fraction 0.15; no-improvement streak 4/5.
+SRSM iteration 13: fitted linear energy response surface with 20 feasible FEM points from full design history (8 features).
+SRSM iteration 13: fitted linear stress response surface with 21 FEM-valid points from full design history (8 features).
+SRSM iteration 13: active sub-design fraction 0.15; best predicted absorbed energy is 13142.3, predicted max stress is 227.154, acquisition score is 13142.3; evaluating top 1 candidates.
+SRSM iteration 13: active bounds x1=[44, 44.9], y1=[45, 45.8], x2=[46, 47], y2=[27.5, 28.5], x3=[21.6, 22.5], y3=[32.2, 33], angle=[71.3, 73]
+SRSM iteration 13 candidate 22: FEM evaluation 22/25
+Sample {'x1': 44.53563834390116, 'y1': 45.082122692421905, 'x2': 46.86048882897709, 'y2': 28.246805897262874, 'x3': 21.898263765257603, 'y3': 32.87094713504421, 'angle': 72.61903112134294} -> Absorbed Energy: 13130.581893111328, Max Stress: 227.785
+SRSM iteration 13: best computed absorbed energy 13130.6; did not improve; next sub-design fraction 0.15; no-improvement streak 1/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (13 SRSM iterations from 13 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (13 SRSM ROI iterations).
 Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
-SRSM iteration 14: fitted linear energy response surface with 22 feasible FEM points from full design history (8 features).
-SRSM iteration 14: fitted linear stress response surface with 23 FEM-valid points from full design history (8 features).
-SRSM iteration 14: active sub-design fraction 0.15; best predicted absorbed energy is 12920.4, predicted max stress is 236.181, acquisition score is 12920.4; evaluating top 1 candidates.
-SRSM iteration 14: active bounds x1=[40.2, 41.1], y1=[45, 45.8], x2=[46, 47], y2=[24.4, 25.4], x3=[17, 17.9], y3=[31.8, 32.7], angle=[67.8, 69.4]
-SRSM iteration 14 candidate 24: FEM evaluation 24/25
-Sample {'x1': 40.35634720809076, 'y1': 45.70915318584503, 'x2': 46.960217535801725, 'y2': 25.28197880183482, 'x3': 17.07819328387444, 'y3': 32.63923472032376, 'angle': 69.09154423655895} -> Absorbed Energy: 12912.270738437232, Max Stress: 245.08975
-SRSM iteration 14: best computed absorbed energy 12912.3; did not improve; next sub-design fraction 0.15; no-improvement streak 5/5.
+SRSM iteration 14: fitted linear energy response surface with 21 feasible FEM points from full design history (8 features).
+SRSM iteration 14: fitted linear stress response surface with 22 FEM-valid points from full design history (8 features).
+SRSM iteration 14: active sub-design fraction 0.15; best predicted absorbed energy is 13149.3, predicted max stress is 225.998, acquisition score is 13149.3; evaluating top 1 candidates.
+SRSM iteration 14: active bounds x1=[44, 44.9], y1=[45, 45.8], x2=[46, 47], y2=[27.5, 28.5], x3=[21.6, 22.5], y3=[32.2, 33], angle=[71.3, 73]
+SRSM iteration 14 candidate 23: FEM evaluation 23/25
+Sample {'x1': 44.83420589973369, 'y1': 45.22807555683466, 'x2': 46.996240607337526, 'y2': 28.497094409705213, 'x3': 21.689193067977996, 'y3': 32.699635165431296, 'angle': 72.4801245797202} -> Absorbed Energy: 13134.650239308978, Max Stress: 224.95975
+SRSM iteration 14: best computed absorbed energy 13134.7; did not improve; next sub-design fraction 0.15; no-improvement streak 2/5.
 Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (14 SRSM iterations from 14 predicted candidates).
 Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (14 SRSM ROI iterations).
-SRSM convergence criterion reached: minimum sub-design fraction and no meaningful improvement over 5 consecutive SRSM iterations.
+Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
+SRSM iteration 15: fitted linear energy response surface with 22 feasible FEM points from full design history (8 features).
+SRSM iteration 15: fitted linear stress response surface with 23 FEM-valid points from full design history (8 features).
+SRSM iteration 15: active sub-design fraction 0.15; best predicted absorbed energy is 13137.6, predicted max stress is 227.653, acquisition score is 13137.6; evaluating top 1 candidates.
+SRSM iteration 15: active bounds x1=[44, 44.9], y1=[45, 45.8], x2=[46, 47], y2=[27.5, 28.5], x3=[21.6, 22.5], y3=[32.2, 33], angle=[71.3, 73]
+SRSM iteration 15 candidate 24: FEM evaluation 24/25
+Sample {'x1': 44.701202361910475, 'y1': 45.194781020960356, 'x2': 46.81655366115934, 'y2': 28.269055005545166, 'x3': 21.65341522877841, 'y3': 32.890025366344716, 'angle': 72.48114403448648} -> Absorbed Energy: 13132.302576245098, Max Stress: 225.8815
+SRSM iteration 15: best computed absorbed energy 13132.3; did not improve; next sub-design fraction 0.15; no-improvement streak 3/5.
+Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (15 SRSM iterations from 15 predicted candidates).
+Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (15 SRSM ROI iterations).
+Generated 200 unique geometry-valid samples from active sub-design space after 200 candidates.
+SRSM iteration 16: fitted linear energy response surface with 23 feasible FEM points from full design history (8 features).
+SRSM iteration 16: fitted linear stress response surface with 24 FEM-valid points from full design history (8 features).
+SRSM iteration 16: active sub-design fraction 0.15; best predicted absorbed energy is 13139.8, predicted max stress is 227.698, acquisition score is 13139.8; evaluating top 1 candidates.
+SRSM iteration 16: active bounds x1=[44, 44.9], y1=[45, 45.8], x2=[46, 47], y2=[27.5, 28.5], x3=[21.6, 22.5], y3=[32.2, 33], angle=[71.3, 73]
+SRSM iteration 16 candidate 25: FEM evaluation 25/25
+Sample {'x1': 44.350996308841424, 'y1': 45.24876389507203, 'x2': 46.859894173523934, 'y2': 28.46846241072966, 'x3': 21.693604336550813, 'y3': 32.901564554502585, 'angle': 72.99044366772915} -> Absorbed Energy: 13141.357750784333, Max Stress: 229.47175000000001
+SRSM iteration 16: best computed absorbed energy 13141.4; improved; next sub-design fraction 0.15; no-improvement streak 0/5.
+Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (16 SRSM iterations from 16 predicted candidates).
+Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (16 SRSM ROI iterations).
 Best feasible design found:
-  x1: 40.68796811539334
-  y1: 45.12189096923236
-  x2: 46.869667870604665
-  y2: 24.903514104348176
-  x3: 17.204781100341588
-  y3: 32.24033876314263
-  angle: 68.60781735751675
-Best feasible objective: 12915.180817707864
-Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (14 SRSM iterations from 14 predicted candidates).
-Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (14 SRSM ROI iterations).
+  x1: 44.350996308841424
+  y1: 45.24876389507203
+  x2: 46.859894173523934
+  y2: 28.46846241072966
+  x3: 21.693604336550813
+  y3: 32.901564554502585
+  angle: 72.99044366772915
+Best feasible objective: 13141.357750784333
+Saved convergence plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\convergence.png (16 SRSM iterations from 16 predicted candidates).
+Saved ROI evolution plot to C:\Users\ASUS\Documents\Yağız Belge Arşivi\Studium Files\8. Semester (ETH)\Studium\Machine Learning and Optimization\Project\1_Optimization\Optimization Project Files V2\plots\roi_evolution.png (16 SRSM ROI iterations).

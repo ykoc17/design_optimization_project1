@@ -29,6 +29,13 @@ QUADRATIC_FEATURE_COUNT = (
     + (len(OBJECTIVE_LOG_PARAMETERS) * (len(OBJECTIVE_LOG_PARAMETERS) - 1)) // 2
 )
 RSM_MODEL_ORDERS = ("adaptive", "linear", "quadratic")
+MAX_CANDIDATE_ATTEMPTS = 10000
+CACHE_ROUND_DECIMALS = 6
+RSM_RIDGE_LAMBDA = 1.0e-8
+STRESS_PENALTY_SCALE = 100.0
+STRESS_SAFETY_MARGIN = 0.0
+SRSM_IMPROVEMENT_TOLERANCE = 1.0e-6
+SRSM_INITIAL_SUBSPACE_FRACTION = 1.0
 ROI_PARAMETER_PAIRS = (
     ("x1", "y1", "Circle 1 center"),
     ("x2", "y2", "Circle 2 center"),
@@ -457,14 +464,12 @@ def score_surrogate_candidates(
     energy_predictions,
     stress_predictions,
     stress_limit,
-    stress_penalty_scale,
-    stress_safety_margin,
 ):
     energy_predictions = np.asarray(energy_predictions, dtype=float)
     stress_predictions = np.asarray(stress_predictions, dtype=float)
-    effective_stress_limit = stress_limit - stress_safety_margin
+    effective_stress_limit = stress_limit - STRESS_SAFETY_MARGIN
     stress_violation = np.maximum(0.0, stress_predictions - effective_stress_limit)
-    return energy_predictions - (stress_penalty_scale * stress_violation)
+    return energy_predictions - (STRESS_PENALTY_SCALE * stress_violation)
 
 def generate_unique_geometry_valid_samples(
     config,
@@ -517,7 +522,7 @@ def generate_unique_geometry_valid_samples(
             f"Could only generate {len(valid_samples)} unique geometry-valid samples "
             f"from {region_name} after {attempts} candidates. Tighten config.json "
             "bounds, reduce candidate pool sizes, widen the SRSM subspace, or raise "
-            "max_candidate_attempts."
+            "MAX_CANDIDATE_ATTEMPTS."
         )
 
     region_name = "active sub-design space" if bounds is not None else "full design space"
@@ -664,6 +669,20 @@ def csv_int_or_none(value):
         return int(text)
     except ValueError:
         return None
+
+def csv_bool_or_false(value):
+    if value is None:
+        return False
+    return str(value).strip().lower() in ("true", "1", "yes")
+
+def read_design_point_from_row(row):
+    point = {}
+    for name in OBJECTIVE_LOG_PARAMETERS:
+        value = csv_float_or_none(row.get(name))
+        if value is None:
+            return None
+        point[name] = value
+    return point
 
 def read_prediction_history(csv_path):
     best_prediction_by_iteration = {}
@@ -843,6 +862,8 @@ def save_convergence_plot(csv_path, output_path):
 
 def read_roi_history(csv_path):
     roi_bounds_by_iteration = {}
+    doe_points = []
+    srsm_points_by_iteration = {}
     row_count = 0
 
     with open(csv_path, newline="") as file:
@@ -850,6 +871,16 @@ def read_roi_history(csv_path):
         for row in reader:
             row_count += 1
             srsm_iteration = csv_int_or_none(row.get("srsm_iteration"))
+            point = read_design_point_from_row(row)
+            fem_valid = csv_bool_or_false(row.get("fem_valid"))
+            if point is not None and fem_valid:
+                if srsm_iteration is None:
+                    doe_points.append(point)
+                else:
+                    srsm_points_by_iteration.setdefault(srsm_iteration, []).append(
+                        point
+                    )
+
             if srsm_iteration is None:
                 continue
 
@@ -872,6 +903,8 @@ def read_roi_history(csv_path):
         "roi_bounds": [
             roi_bounds_by_iteration[iteration] for iteration in iterations
         ],
+        "doe_points": doe_points,
+        "srsm_points_by_iteration": srsm_points_by_iteration,
         "row_count": row_count,
     }
 
@@ -933,7 +966,17 @@ def save_roi_evolution_plot(csv_path, output_path, full_bounds=None):
 
     iterations = history["iterations"]
     roi_bounds_history = history["roi_bounds"]
+    doe_points = history["doe_points"]
+    srsm_points_by_iteration = history["srsm_points_by_iteration"]
+    srsm_points = [
+        point
+        for iteration in sorted(srsm_points_by_iteration)
+        for point in srsm_points_by_iteration[iteration]
+    ]
     colors = roi_history_colors(plt, len(iterations))
+    doe_point_color = "#777777"
+    srsm_point_color = "#90ee90"
+    srsm_point_edge_color = "#2f7d32"
 
     fig, axes = plt.subplots(2, 2, figsize=(11.0, 8.5))
     axes = axes.ravel()
@@ -966,7 +1009,31 @@ def save_roi_evolution_plot(csv_path, output_path, full_bounds=None):
                 )
             )
 
-        if not iterations:
+        if doe_points:
+            axis.scatter(
+                [point[x_name] for point in doe_points],
+                [point[y_name] for point in doe_points],
+                color=doe_point_color,
+                s=22,
+                marker="o",
+                alpha=0.72,
+                edgecolors="none",
+                zorder=4,
+            )
+        if srsm_points:
+            axis.scatter(
+                [point[x_name] for point in srsm_points],
+                [point[y_name] for point in srsm_points],
+                color=srsm_point_color,
+                s=28,
+                marker="o",
+                alpha=0.9,
+                edgecolors=srsm_point_edge_color,
+                linewidths=0.45,
+                zorder=5,
+            )
+
+        if not iterations and not doe_points and not srsm_points:
             axis.text(
                 0.5,
                 0.5,
@@ -988,6 +1055,39 @@ def save_roi_evolution_plot(csv_path, output_path, full_bounds=None):
     angle_lower, angle_upper = full_bounds[ROI_1D_PARAMETER]
     angle_axis.axhline(angle_lower, color="black", linewidth=2.0)
     angle_axis.axhline(angle_upper, color="black", linewidth=2.0)
+
+    angle_x_values = []
+    if doe_points:
+        angle_axis.scatter(
+            [0] * len(doe_points),
+            [point[ROI_1D_PARAMETER] for point in doe_points],
+            color=doe_point_color,
+            s=22,
+            marker="o",
+            alpha=0.72,
+            edgecolors="none",
+            zorder=4,
+        )
+        angle_x_values.append(0)
+    if srsm_points_by_iteration:
+        srsm_angle_iterations = []
+        srsm_angle_values = []
+        for iteration in sorted(srsm_points_by_iteration):
+            for point in srsm_points_by_iteration[iteration]:
+                srsm_angle_iterations.append(iteration)
+                srsm_angle_values.append(point[ROI_1D_PARAMETER])
+        angle_axis.scatter(
+            srsm_angle_iterations,
+            srsm_angle_values,
+            color=srsm_point_color,
+            s=28,
+            marker="o",
+            alpha=0.9,
+            edgecolors=srsm_point_edge_color,
+            linewidths=0.45,
+            zorder=5,
+        )
+        angle_x_values.extend(srsm_angle_iterations)
 
     if iterations:
         roi_angle_lowers = [
@@ -1020,23 +1120,27 @@ def save_roi_evolution_plot(csv_path, output_path, full_bounds=None):
             linewidth=1.0,
             alpha=0.6,
         )
-        if len(iterations) == 1:
-            angle_axis.set_xlim(iterations[0] - 0.5, iterations[0] + 0.5)
-        else:
-            angle_axis.set_xlim(min(iterations) - 0.5, max(iterations) + 0.5)
-        angle_axis.set_xticks(iterations)
+        angle_x_values.extend(iterations)
     else:
-        angle_axis.text(
-            0.5,
-            0.5,
-            "No SRSM ROI rows found",
-            ha="center",
-            va="center",
-            transform=angle_axis.transAxes,
-        )
+        if not doe_points and not srsm_points_by_iteration:
+            angle_axis.text(
+                0.5,
+                0.5,
+                "No SRSM ROI rows found",
+                ha="center",
+                va="center",
+                transform=angle_axis.transAxes,
+            )
+
+    if angle_x_values:
+        x_lower = min(angle_x_values)
+        x_upper = max(angle_x_values)
+        angle_axis.set_xlim(x_lower - 0.5, x_upper + 0.5)
+    else:
+        angle_axis.set_xlim(-0.5, 0.5)
 
     angle_axis.set_title("Angle bounds")
-    angle_axis.set_xlabel("SRSM iteration")
+    angle_axis.set_xlabel("SRSM iteration (DOE = 0)")
     angle_axis.set_ylabel(ROI_1D_PARAMETER)
     angle_axis.set_ylim(*padded_axis_limits(angle_lower, angle_upper))
     angle_axis.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -1052,10 +1156,42 @@ def save_roi_evolution_plot(csv_path, output_path, full_bounds=None):
         legend_handles.append(
             Line2D([0], [0], color=colors[-1], linewidth=2.0, label="Newer ROI")
         )
-    axes[0].legend(handles=legend_handles, loc="best")
-
+    if doe_points:
+        legend_handles.append(
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="none",
+                markerfacecolor=doe_point_color,
+                markeredgecolor="none",
+                markersize=6,
+                label="Initial DOE FEM evals",
+            )
+        )
+    if srsm_points:
+        legend_handles.append(
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="none",
+                markerfacecolor=srsm_point_color,
+                markeredgecolor=srsm_point_edge_color,
+                markersize=6,
+                label="SRSM FEM evals",
+            )
+        )
     fig.suptitle("SRSM Region of Interest Evolution")
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+    fig.legend(
+        handles=legend_handles,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.94),
+        ncol=min(len(legend_handles), 5),
+        frameon=True,
+        borderaxespad=0.0,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.86))
     fig.savefig(output_path, dpi=200)
     plt.close(fig)
 
@@ -1250,54 +1386,25 @@ def run_optimizer(args):
     max_fem_evaluations = get_config_int(config, "max_fem_evaluations", 75)
     surrogate_candidate_pool_size = get_config_int(config, "surrogate_candidate_pool_size", 2000)
     surrogate_batch_size = get_config_int(config, "surrogate_batch_size", 5)
-    max_candidate_attempts = get_config_int(config, "max_candidate_attempts", 100000)
-    min_surrogate_training_points = get_config_int(
-        config,
-        "min_surrogate_training_points",
-        LINEAR_FEATURE_COUNT,
-    )
-    if min_surrogate_training_points < LINEAR_FEATURE_COUNT:
-        print(
-            "Warning: min_surrogate_training_points is below the number of "
-            f"linear response-surface coefficients ({LINEAR_FEATURE_COUNT}); "
-            f"using {LINEAR_FEATURE_COUNT} instead."
-        )
-        min_surrogate_training_points = LINEAR_FEATURE_COUNT
-    cache_round_decimals = get_config_int(config, "cache_round_decimals", 6, minimum=0)
-    rsm_ridge_lambda = get_config_float(config, "rsm_ridge_lambda", 1.0e-8, minimum=0.0)
     rsm_model_order = get_config_choice(
         config,
         "rsm_model_order",
-        "adaptive",
+        "linear",
         RSM_MODEL_ORDERS,
     )
-    if (
-        rsm_model_order == "quadratic"
-        and min_surrogate_training_points < QUADRATIC_FEATURE_COUNT
-    ):
-        raise ValueError(
-            "Configuration value 'min_surrogate_training_points' must be at "
-            f"least {QUADRATIC_FEATURE_COUNT} when rsm_model_order is "
-            "'quadratic'. Use rsm_model_order='adaptive' for small FEM budgets."
-        )
-    stress_penalty_scale = get_config_float(
-        config,
-        "stress_penalty_scale",
-        100.0,
-        minimum=0.0,
+    min_training_model_order = (
+        "quadratic" if rsm_model_order == "quadratic" else "linear"
     )
-    stress_safety_margin = get_config_float(
-        config,
-        "stress_safety_margin",
-        0.0,
-        minimum=0.0,
+    min_surrogate_training_points = response_surface_feature_count(
+        min_training_model_order
     )
-    if stress_safety_margin >= STRESS_LIMIT:
-        raise ValueError("Configuration value 'stress_safety_margin' is too large")
-    srsm_initial_subspace_fraction = validate_fraction_config(
-        get_config_float(config, "srsm_initial_subspace_fraction", 0.6, minimum=0.0),
-        "srsm_initial_subspace_fraction",
-    )
+    max_candidate_attempts = MAX_CANDIDATE_ATTEMPTS
+    cache_round_decimals = CACHE_ROUND_DECIMALS
+    rsm_ridge_lambda = RSM_RIDGE_LAMBDA
+    srsm_improvement_tolerance = SRSM_IMPROVEMENT_TOLERANCE
+    if STRESS_SAFETY_MARGIN >= STRESS_LIMIT:
+        raise ValueError("STRESS_SAFETY_MARGIN is too large")
+    srsm_initial_subspace_fraction = SRSM_INITIAL_SUBSPACE_FRACTION
     srsm_min_subspace_fraction = validate_fraction_config(
         get_config_float(config, "srsm_min_subspace_fraction", 0.1, minimum=0.0),
         "srsm_min_subspace_fraction",
@@ -1305,7 +1412,7 @@ def run_optimizer(args):
     if srsm_min_subspace_fraction > srsm_initial_subspace_fraction:
         raise ValueError(
             "Configuration value 'srsm_min_subspace_fraction' must be <= "
-            "'srsm_initial_subspace_fraction'"
+            f"SRSM_INITIAL_SUBSPACE_FRACTION ({SRSM_INITIAL_SUBSPACE_FRACTION})"
         )
     srsm_subspace_shrink_factor = validate_shrink_factor(
         get_config_float(config, "srsm_subspace_shrink_factor", 0.7, minimum=0.0),
@@ -1315,12 +1422,6 @@ def run_optimizer(args):
         get_config_float(config, "srsm_failure_shrink_factor", 0.5, minimum=0.0),
         "srsm_failure_shrink_factor",
     )
-    srsm_improvement_tolerance = get_config_float(
-        config,
-        "srsm_improvement_tolerance",
-        1.0e-6,
-        minimum=0.0,
-    )
     srsm_convergence_patience = get_config_int(
         config,
         "srsm_convergence_patience",
@@ -1329,8 +1430,8 @@ def run_optimizer(args):
     )
     if min_surrogate_training_points > max_fem_evaluations:
         print(
-            "Warning: min_surrogate_training_points is greater than "
-            "max_fem_evaluations, so the adaptive SRSM phase cannot start "
+            "Warning: response-surface training requires more FEM points than "
+            "max_fem_evaluations, so the SRSM phase cannot start "
             "with the current config."
         )
 
@@ -1452,6 +1553,7 @@ def run_optimizer(args):
             max_attempts=max_candidate_attempts,
         )
         evaluate_candidates(initial_doe_samples, "DOE")
+        save_roi_evolution_plot(objective_log_path, args.roi_plot_output, bounds)
 
     while fem_evaluations < max_fem_evaluations:
         remaining_budget = max_fem_evaluations - fem_evaluations
@@ -1519,8 +1621,6 @@ def run_optimizer(args):
                 predictions,
                 stress_predictions,
                 STRESS_LIMIT,
-                stress_penalty_scale,
-                stress_safety_margin,
             )
             ranked_indices = np.argsort(acquisition_scores)[::-1]
             selected_samples = [
