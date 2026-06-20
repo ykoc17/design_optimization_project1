@@ -14,7 +14,7 @@
     },
     "_comment3": "Report-facing SRSM settings: denser local batches, adaptive RSM order, slower ROI shrink",
     "initial_doe_size": 70,
-    "max_fem_evaluations": 100,
+    "max_fem_evaluations": 160,
     "surrogate_candidate_pool_size": 500,
     "surrogate_batch_size": 3,
     "rsm_model_order": "adaptive",
