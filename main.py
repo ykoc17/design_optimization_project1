@@ -913,15 +913,21 @@ def padded_axis_limits(lower, upper, padding_fraction=0.06):
     padding = span * padding_fraction if span > 0.0 else 1.0
     return lower - padding, upper + padding
 
-def roi_history_colors(plt, count):
+def history_gradient_colors(colormap, count):
     if count <= 0:
         return []
     if count == 1:
-        return [plt.cm.Reds(0.85)]
+        return [colormap(0.85)]
     return [
-        plt.cm.Reds(0.25 + 0.65 * index / (count - 1))
+        colormap(0.25 + 0.65 * index / (count - 1))
         for index in range(count)
     ]
+
+def roi_history_colors(plt, count):
+    return history_gradient_colors(plt.cm.Reds, count)
+
+def srsm_history_colors(plt, count):
+    return history_gradient_colors(plt.cm.Greens, count)
 
 def load_plot_design_bounds():
     try:
@@ -968,14 +974,22 @@ def save_roi_evolution_plot(csv_path, output_path, full_bounds=None):
     roi_bounds_history = history["roi_bounds"]
     doe_points = history["doe_points"]
     srsm_points_by_iteration = history["srsm_points_by_iteration"]
+    srsm_iterations = sorted(srsm_points_by_iteration)
+    srsm_color_iterations = sorted(set(iterations) | set(srsm_iterations))
+    srsm_colors = srsm_history_colors(plt, len(srsm_color_iterations))
+    srsm_colors_by_iteration = dict(zip(srsm_color_iterations, srsm_colors))
     srsm_points = [
         point
-        for iteration in sorted(srsm_points_by_iteration)
+        for iteration in srsm_iterations
+        for point in srsm_points_by_iteration[iteration]
+    ]
+    srsm_point_colors = [
+        srsm_colors_by_iteration[iteration]
+        for iteration in srsm_iterations
         for point in srsm_points_by_iteration[iteration]
     ]
     colors = roi_history_colors(plt, len(iterations))
     doe_point_color = "#777777"
-    srsm_point_color = "#90ee90"
     srsm_point_edge_color = "#2f7d32"
 
     fig, axes = plt.subplots(2, 2, figsize=(11.0, 8.5))
@@ -1024,7 +1038,7 @@ def save_roi_evolution_plot(csv_path, output_path, full_bounds=None):
             axis.scatter(
                 [point[x_name] for point in srsm_points],
                 [point[y_name] for point in srsm_points],
-                color=srsm_point_color,
+                color=srsm_point_colors,
                 s=28,
                 marker="o",
                 alpha=0.9,
@@ -1072,14 +1086,16 @@ def save_roi_evolution_plot(csv_path, output_path, full_bounds=None):
     if srsm_points_by_iteration:
         srsm_angle_iterations = []
         srsm_angle_values = []
-        for iteration in sorted(srsm_points_by_iteration):
+        srsm_angle_colors = []
+        for iteration in srsm_iterations:
             for point in srsm_points_by_iteration[iteration]:
                 srsm_angle_iterations.append(iteration)
                 srsm_angle_values.append(point[ROI_1D_PARAMETER])
+                srsm_angle_colors.append(srsm_colors_by_iteration[iteration])
         angle_axis.scatter(
             srsm_angle_iterations,
             srsm_angle_values,
-            color=srsm_point_color,
+            color=srsm_angle_colors,
             s=28,
             marker="o",
             alpha=0.9,
@@ -1170,18 +1186,36 @@ def save_roi_evolution_plot(csv_path, output_path, full_bounds=None):
             )
         )
     if srsm_points:
+        srsm_label = (
+            "Older SRSM FEM evals"
+            if len(srsm_iterations) > 1
+            else "SRSM FEM evals"
+        )
         legend_handles.append(
             Line2D(
                 [0],
                 [0],
                 marker="o",
                 color="none",
-                markerfacecolor=srsm_point_color,
+                markerfacecolor=srsm_point_colors[0],
                 markeredgecolor=srsm_point_edge_color,
                 markersize=6,
-                label="SRSM FEM evals",
+                label=srsm_label,
             )
         )
+        if len(srsm_iterations) > 1:
+            legend_handles.append(
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="none",
+                    markerfacecolor=srsm_point_colors[-1],
+                    markeredgecolor=srsm_point_edge_color,
+                    markersize=6,
+                    label="Newer SRSM FEM evals",
+                )
+            )
     fig.suptitle("SRSM Region of Interest Evolution")
     fig.legend(
         handles=legend_handles,

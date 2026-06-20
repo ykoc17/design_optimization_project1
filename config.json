@@ -12,14 +12,14 @@
         "y3": [27.5, 33.0],
         "angle": [62.0, 73.0]
     },
-    "_comment3": "Report-facing Successive Response Surface Method settings",
-    "initial_doe_size": 5,
-    "max_fem_evaluations": 25,
-    "surrogate_candidate_pool_size": 200,
-    "surrogate_batch_size": 1,
-    "rsm_model_order": "linear",
-    "srsm_min_subspace_fraction": 0.15,
-    "srsm_subspace_shrink_factor": 0.85,
-    "srsm_failure_shrink_factor": 0.7,
-    "srsm_convergence_patience": 5
+    "_comment3": "Report-facing SRSM settings: denser local batches, adaptive RSM order, slower ROI shrink",
+    "initial_doe_size": 70,
+    "max_fem_evaluations": 100,
+    "surrogate_candidate_pool_size": 500,
+    "surrogate_batch_size": 3,
+    "rsm_model_order": "adaptive",
+    "srsm_min_subspace_fraction": 0.25,
+    "srsm_subspace_shrink_factor": 0.95,
+    "srsm_failure_shrink_factor": 0.9,
+    "srsm_convergence_patience": 6
 }
