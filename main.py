@@ -22,12 +22,24 @@ CAPSULE_CENTERLINE_LENGTH = 25.0
 STRESS_LIMIT = 275.0
 
 OBJECTIVE_LOG_PARAMETERS = ["x1", "y1", "x2", "y2", "x3", "y3", "angle"]
+LINEAR_FEATURE_COUNT = 1 + len(OBJECTIVE_LOG_PARAMETERS)
 QUADRATIC_FEATURE_COUNT = (
-    1
-    + len(OBJECTIVE_LOG_PARAMETERS)
+    LINEAR_FEATURE_COUNT
     + len(OBJECTIVE_LOG_PARAMETERS)
     + (len(OBJECTIVE_LOG_PARAMETERS) * (len(OBJECTIVE_LOG_PARAMETERS) - 1)) // 2
 )
+RSM_MODEL_ORDERS = ("adaptive", "linear", "quadratic")
+ROI_PARAMETER_PAIRS = (
+    ("x1", "y1", "Circle 1 center"),
+    ("x2", "y2", "Circle 2 center"),
+    ("x3", "y3", "Capsule center"),
+)
+ROI_1D_PARAMETER = "angle"
+ROI_LOG_FIELDNAMES = [
+    field_name
+    for name in OBJECTIVE_LOG_PARAMETERS
+    for field_name in (f"roi_{name}_min", f"roi_{name}_max")
+]
 OBJECTIVE_LOG_FIELDNAMES = [
     "eval_id",
     *OBJECTIVE_LOG_PARAMETERS,
@@ -39,7 +51,10 @@ OBJECTIVE_LOG_FIELDNAMES = [
     "failure_reason",
     "srsm_iteration",
     "predicted_objective",
+    "predicted_stress",
+    "acquisition_score",
     "srsm_subspace_fraction",
+    *ROI_LOG_FIELDNAMES,
     "best_feasible_objective_so_far",
 ]
 
@@ -246,6 +261,15 @@ def get_config_float(config, name, default, minimum=None):
         raise ValueError(f"Configuration value '{name}' must be >= {minimum}")
     return value
 
+def get_config_choice(config, name, default, choices):
+    value = str(config.get(name, default)).strip().lower()
+    if value not in choices:
+        raise ValueError(
+            f"Configuration value '{name}' must be one of: "
+            + ", ".join(choices)
+        )
+    return value
+
 def parameter_bounds(config):
     bounds = config["dsParameterBounds"]
     missing_parameters = [
@@ -349,29 +373,57 @@ def normalize_sample(sample, bounds):
         normalized.append((2.0 * (_as_float(sample, name) - lower) / (upper - lower)) - 1.0)
     return np.array(normalized, dtype=float)
 
-def quadratic_features_from_normalized(normalized_values):
+def response_surface_feature_count(model_order):
+    if model_order == "linear":
+        return LINEAR_FEATURE_COUNT
+    if model_order == "quadratic":
+        return QUADRATIC_FEATURE_COUNT
+    raise ValueError(f"Unsupported response surface model order: {model_order}")
+
+def select_response_surface_model_order(training_count, requested_model_order):
+    if requested_model_order == "adaptive":
+        if training_count >= QUADRATIC_FEATURE_COUNT:
+            return "quadratic"
+        return "linear"
+    return requested_model_order
+
+def response_surface_features_from_normalized(normalized_values, model_order):
     features = [1.0]
     features.extend(normalized_values)
-    features.extend(value * value for value in normalized_values)
-    for i in range(len(normalized_values)):
-        for j in range(i + 1, len(normalized_values)):
-            features.append(normalized_values[i] * normalized_values[j])
+    if model_order == "quadratic":
+        features.extend(value * value for value in normalized_values)
+        for i in range(len(normalized_values)):
+            for j in range(i + 1, len(normalized_values)):
+                features.append(normalized_values[i] * normalized_values[j])
     return np.array(features, dtype=float)
 
-def build_quadratic_feature_matrix(samples, bounds):
+def build_response_surface_feature_matrix(samples, bounds, model_order):
     feature_rows = []
     for sample in samples:
         normalized = normalize_sample(sample, bounds)
-        feature_rows.append(quadratic_features_from_normalized(normalized))
+        feature_rows.append(
+            response_surface_features_from_normalized(normalized, model_order)
+        )
     return np.vstack(feature_rows)
 
-def fit_response_surface(feasible_results, bounds, ridge_lambda):
-    if not feasible_results:
+def fit_response_surface(results, bounds, ridge_lambda, target_name, requested_model_order):
+    if not results:
         return None
 
-    x_matrix = build_quadratic_feature_matrix(feasible_results, bounds)
+    model_order = select_response_surface_model_order(
+        len(results),
+        requested_model_order,
+    )
+    feature_count = response_surface_feature_count(model_order)
+    if len(results) < feature_count:
+        raise ValueError(
+            f"Cannot fit a {model_order} response surface for '{target_name}' "
+            f"with {len(results)} points; at least {feature_count} are required."
+        )
+
+    x_matrix = build_response_surface_feature_matrix(results, bounds, model_order)
     y_vector = np.array(
-        [float(result["energy_objective"]) for result in feasible_results],
+        [float(result[target_name]) for result in results],
         dtype=float,
     )
 
@@ -387,12 +439,32 @@ def fit_response_surface(feasible_results, bounds, ridge_lambda):
     return {
         "bounds": bounds,
         "coefficients": coefficients,
-        "training_count": len(feasible_results),
+        "training_count": len(results),
+        "feature_count": feature_count,
+        "model_order": model_order,
+        "target_name": target_name,
     }
 
 def predict_response_surface(model, samples):
-    x_matrix = build_quadratic_feature_matrix(samples, model["bounds"])
+    x_matrix = build_response_surface_feature_matrix(
+        samples,
+        model["bounds"],
+        model["model_order"],
+    )
     return x_matrix @ model["coefficients"]
+
+def score_surrogate_candidates(
+    energy_predictions,
+    stress_predictions,
+    stress_limit,
+    stress_penalty_scale,
+    stress_safety_margin,
+):
+    energy_predictions = np.asarray(energy_predictions, dtype=float)
+    stress_predictions = np.asarray(stress_predictions, dtype=float)
+    effective_stress_limit = stress_limit - stress_safety_margin
+    stress_violation = np.maximum(0.0, stress_predictions - effective_stress_limit)
+    return energy_predictions - (stress_penalty_scale * stress_violation)
 
 def generate_unique_geometry_valid_samples(
     config,
@@ -459,6 +531,25 @@ def build_command(sample, journalFile, freeCadExecpath):
     cmd = [freeCadExecpath, journalFile, json.dumps(sample),] 
     return cmd
 
+def parse_freecad_objective_output(stdout_text):
+    numeric_values = []
+    for line in stdout_text.splitlines():
+        text = line.strip()
+        if not text:
+            continue
+        try:
+            numeric_values.append(float(text))
+        except ValueError:
+            continue
+
+    if len(numeric_values) < 2:
+        raise ValueError(
+            "FreeCAD output did not contain final numeric absorbed-energy "
+            "and max-stress values."
+        )
+
+    return numeric_values[-2], numeric_values[-1]
+
 def calculate_objective(sample, freeCAD_journal, freeCADExecPath):
     # create necessary folders
     # try processing the current sample geometry
@@ -475,11 +566,7 @@ def calculate_objective(sample, freeCAD_journal, freeCADExecPath):
                 details = details.splitlines()[-1]
                 raise Exception(f"FreeCAD exited with code {res.returncode}: {details}")
             raise Exception(f"FreeCAD exited with code {res.returncode}")
-        # retrieve the absorbed energy from the logged string
-        # make sure the last thing you log in the full_journal_fc.py script is the 
-        output_lines = [line.strip() for line in res.stdout.splitlines() if line.strip()]
-        absorbed_energy = float(output_lines[-2])
-        max_stress = float(output_lines[-1])
+        absorbed_energy, max_stress = parse_freecad_objective_output(res.stdout)
     # catch exceptions and log failed samples. DB entry at index (sampleId) is invalid
     except Exception as e:
         failure_reason = str(e)
@@ -508,7 +595,10 @@ def log_objective_evaluation(
     best_feasible_objective_so_far,
     srsm_iteration=None,
     predicted_objective=None,
+    predicted_stress=None,
+    acquisition_score=None,
     srsm_subspace_fraction=None,
+    srsm_roi_bounds=None,
 ):
     row = {
         "eval_id": eval_id,
@@ -522,6 +612,12 @@ def log_objective_evaluation(
         "predicted_objective": (
             predicted_objective if predicted_objective is not None else ""
         ),
+        "predicted_stress": (
+            predicted_stress if predicted_stress is not None else ""
+        ),
+        "acquisition_score": (
+            acquisition_score if acquisition_score is not None else ""
+        ),
         "srsm_subspace_fraction": (
             srsm_subspace_fraction if srsm_subspace_fraction is not None else ""
         ),
@@ -533,6 +629,15 @@ def log_objective_evaluation(
     }
     for name in OBJECTIVE_LOG_PARAMETERS:
         row[name] = sample.get(name, "")
+        row[f"roi_{name}_min"] = ""
+        row[f"roi_{name}_max"] = ""
+
+    if srsm_roi_bounds is not None:
+        for name in OBJECTIVE_LOG_PARAMETERS:
+            if name in srsm_roi_bounds:
+                lower, upper = srsm_roi_bounds[name]
+                row[f"roi_{name}_min"] = lower
+                row[f"roi_{name}_max"] = upper
 
     with open(csv_path, "a", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=OBJECTIVE_LOG_FIELDNAMES)
@@ -736,6 +841,236 @@ def save_convergence_plot(csv_path, output_path):
         )
     return True
 
+def read_roi_history(csv_path):
+    roi_bounds_by_iteration = {}
+    row_count = 0
+
+    with open(csv_path, newline="") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            row_count += 1
+            srsm_iteration = csv_int_or_none(row.get("srsm_iteration"))
+            if srsm_iteration is None:
+                continue
+
+            roi_bounds = {}
+            complete_roi_bounds = True
+            for name in OBJECTIVE_LOG_PARAMETERS:
+                lower = csv_float_or_none(row.get(f"roi_{name}_min"))
+                upper = csv_float_or_none(row.get(f"roi_{name}_max"))
+                if lower is None or upper is None:
+                    complete_roi_bounds = False
+                    break
+                roi_bounds[name] = (lower, upper)
+
+            if complete_roi_bounds:
+                roi_bounds_by_iteration.setdefault(srsm_iteration, roi_bounds)
+
+    iterations = sorted(roi_bounds_by_iteration)
+    return {
+        "iterations": iterations,
+        "roi_bounds": [
+            roi_bounds_by_iteration[iteration] for iteration in iterations
+        ],
+        "row_count": row_count,
+    }
+
+def padded_axis_limits(lower, upper, padding_fraction=0.06):
+    span = upper - lower
+    padding = span * padding_fraction if span > 0.0 else 1.0
+    return lower - padding, upper + padding
+
+def roi_history_colors(plt, count):
+    if count <= 0:
+        return []
+    if count == 1:
+        return [plt.cm.Reds(0.85)]
+    return [
+        plt.cm.Reds(0.25 + 0.65 * index / (count - 1))
+        for index in range(count)
+    ]
+
+def load_plot_design_bounds():
+    try:
+        return parameter_bounds(getConfig())
+    except Exception as exc:
+        print(f"Cannot load full design bounds for ROI plot: {exc}")
+        return None
+
+def save_roi_evolution_plot(csv_path, output_path, full_bounds=None):
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.lines import Line2D
+        from matplotlib.patches import Rectangle
+        from matplotlib.ticker import MaxNLocator
+    except ImportError:
+        print(
+            "matplotlib is not available; skipping ROI evolution plot. "
+            f"The objective CSV remains complete at {csv_path}."
+        )
+        return False
+
+    if full_bounds is None:
+        full_bounds = load_plot_design_bounds()
+    if full_bounds is None:
+        return False
+
+    try:
+        history = read_roi_history(csv_path)
+    except FileNotFoundError:
+        print(f"Cannot create ROI evolution plot because CSV was not found: {csv_path}")
+        return False
+    except OSError as exc:
+        print(f"Cannot create ROI evolution plot from {csv_path}: {exc}")
+        return False
+
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    iterations = history["iterations"]
+    roi_bounds_history = history["roi_bounds"]
+    colors = roi_history_colors(plt, len(iterations))
+
+    fig, axes = plt.subplots(2, 2, figsize=(11.0, 8.5))
+    axes = axes.ravel()
+
+    for axis, (x_name, y_name, title) in zip(axes[:3], ROI_PARAMETER_PAIRS):
+        x_lower, x_upper = full_bounds[x_name]
+        y_lower, y_upper = full_bounds[y_name]
+        axis.add_patch(
+            Rectangle(
+                (x_lower, y_lower),
+                x_upper - x_lower,
+                y_upper - y_lower,
+                fill=False,
+                edgecolor="black",
+                linewidth=2.0,
+            )
+        )
+
+        for roi_bounds, color in zip(roi_bounds_history, colors):
+            roi_x_lower, roi_x_upper = roi_bounds[x_name]
+            roi_y_lower, roi_y_upper = roi_bounds[y_name]
+            axis.add_patch(
+                Rectangle(
+                    (roi_x_lower, roi_y_lower),
+                    roi_x_upper - roi_x_lower,
+                    roi_y_upper - roi_y_lower,
+                    fill=False,
+                    edgecolor=color,
+                    linewidth=1.8,
+                )
+            )
+
+        if not iterations:
+            axis.text(
+                0.5,
+                0.5,
+                "No SRSM ROI rows found",
+                ha="center",
+                va="center",
+                transform=axis.transAxes,
+            )
+
+        axis.set_title(title)
+        axis.set_xlabel(x_name)
+        axis.set_ylabel(y_name)
+        axis.set_xlim(*padded_axis_limits(x_lower, x_upper))
+        axis.set_ylim(*padded_axis_limits(y_lower, y_upper))
+        axis.set_aspect("equal", adjustable="box")
+        axis.grid(True, linestyle="--", linewidth=0.5, alpha=0.4)
+
+    angle_axis = axes[3]
+    angle_lower, angle_upper = full_bounds[ROI_1D_PARAMETER]
+    angle_axis.axhline(angle_lower, color="black", linewidth=2.0)
+    angle_axis.axhline(angle_upper, color="black", linewidth=2.0)
+
+    if iterations:
+        roi_angle_lowers = [
+            roi_bounds[ROI_1D_PARAMETER][0] for roi_bounds in roi_bounds_history
+        ]
+        roi_angle_uppers = [
+            roi_bounds[ROI_1D_PARAMETER][1] for roi_bounds in roi_bounds_history
+        ]
+        for iteration, lower, upper, color in zip(
+            iterations,
+            roi_angle_lowers,
+            roi_angle_uppers,
+            colors,
+        ):
+            angle_axis.vlines(iteration, lower, upper, color=color, linewidth=4.0)
+            angle_axis.plot(iteration, lower, marker="_", color=color, markersize=10)
+            angle_axis.plot(iteration, upper, marker="_", color=color, markersize=10)
+
+        angle_axis.plot(
+            iterations,
+            roi_angle_lowers,
+            color="#b2182b",
+            linewidth=1.0,
+            alpha=0.6,
+        )
+        angle_axis.plot(
+            iterations,
+            roi_angle_uppers,
+            color="#b2182b",
+            linewidth=1.0,
+            alpha=0.6,
+        )
+        if len(iterations) == 1:
+            angle_axis.set_xlim(iterations[0] - 0.5, iterations[0] + 0.5)
+        else:
+            angle_axis.set_xlim(min(iterations) - 0.5, max(iterations) + 0.5)
+        angle_axis.set_xticks(iterations)
+    else:
+        angle_axis.text(
+            0.5,
+            0.5,
+            "No SRSM ROI rows found",
+            ha="center",
+            va="center",
+            transform=angle_axis.transAxes,
+        )
+
+    angle_axis.set_title("Angle bounds")
+    angle_axis.set_xlabel("SRSM iteration")
+    angle_axis.set_ylabel(ROI_1D_PARAMETER)
+    angle_axis.set_ylim(*padded_axis_limits(angle_lower, angle_upper))
+    angle_axis.xaxis.set_major_locator(MaxNLocator(integer=True))
+    angle_axis.grid(True, linestyle="--", linewidth=0.5, alpha=0.4)
+
+    legend_handles = [
+        Line2D([0], [0], color="black", linewidth=2.0, label="Full design bounds"),
+    ]
+    if colors:
+        legend_handles.append(
+            Line2D([0], [0], color=colors[0], linewidth=2.0, label="Older ROI")
+        )
+        legend_handles.append(
+            Line2D([0], [0], color=colors[-1], linewidth=2.0, label="Newer ROI")
+        )
+    axes[0].legend(handles=legend_handles, loc="best")
+
+    fig.suptitle("SRSM Region of Interest Evolution")
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+    fig.savefig(output_path, dpi=200)
+    plt.close(fig)
+
+    if iterations:
+        print(
+            f"Saved ROI evolution plot to {output_path} "
+            f"({len(iterations)} SRSM ROI iterations)."
+        )
+    else:
+        print(
+            f"Saved ROI evolution plot to {output_path}; "
+            "no SRSM ROI bounds were found in the CSV."
+        )
+    return True
+
 def evaluate_and_log_candidate(
     csv_path,
     eval_id,
@@ -746,7 +1081,10 @@ def evaluate_and_log_candidate(
     best_feasible_design_so_far,
     srsm_iteration=None,
     predicted_objective=None,
+    predicted_stress=None,
+    acquisition_score=None,
     srsm_subspace_fraction=None,
+    srsm_roi_bounds=None,
 ):
     geometry_valid, geometry_failure_reason = geometry_constraint_report(sample)
     absorbed_energy = None
@@ -795,7 +1133,10 @@ def evaluate_and_log_candidate(
         best_feasible_objective_so_far,
         srsm_iteration=srsm_iteration,
         predicted_objective=predicted_objective,
+        predicted_stress=predicted_stress,
+        acquisition_score=acquisition_score,
         srsm_subspace_fraction=srsm_subspace_fraction,
+        srsm_roi_bounds=srsm_roi_bounds,
     )
 
     if fem_valid:
@@ -815,7 +1156,10 @@ def evaluate_and_log_candidate(
         "fem_attempted": geometry_valid,
         "srsm_iteration": srsm_iteration,
         "predicted_objective": predicted_objective,
+        "predicted_stress": predicted_stress,
+        "acquisition_score": acquisition_score,
         "srsm_subspace_fraction": srsm_subspace_fraction,
+        "srsm_roi_bounds": srsm_roi_bounds,
     }
     return evaluation, best_feasible_objective_so_far, best_feasible_design_so_far
 
@@ -838,6 +1182,11 @@ def parse_args(argv=None):
         "--plot-output",
         default=os.path.join(os.getcwd(), "plots", "convergence.png"),
         help="Path for the convergence plot image.",
+    )
+    parser.add_argument(
+        "--roi-plot-output",
+        default=os.path.join(os.getcwd(), "plots", "roi_evolution.png"),
+        help="Path for the SRSM region-of-interest evolution plot image.",
     )
     parser.add_argument(
         "--output-log",
@@ -874,6 +1223,7 @@ def run_optimizer(args):
     """
     if args.plot_only:
         save_convergence_plot(args.csv_path, args.plot_output)
+        save_roi_evolution_plot(args.csv_path, args.roi_plot_output)
         return
 
     freeCADExecPath = r'C:/Program Files/FreeCAD 1.0/bin/FreeCADCmd.exe' # default on windows
@@ -904,10 +1254,46 @@ def run_optimizer(args):
     min_surrogate_training_points = get_config_int(
         config,
         "min_surrogate_training_points",
-        max(8, len(OBJECTIVE_LOG_PARAMETERS) + 1),
+        LINEAR_FEATURE_COUNT,
     )
+    if min_surrogate_training_points < LINEAR_FEATURE_COUNT:
+        print(
+            "Warning: min_surrogate_training_points is below the number of "
+            f"linear response-surface coefficients ({LINEAR_FEATURE_COUNT}); "
+            f"using {LINEAR_FEATURE_COUNT} instead."
+        )
+        min_surrogate_training_points = LINEAR_FEATURE_COUNT
     cache_round_decimals = get_config_int(config, "cache_round_decimals", 6, minimum=0)
     rsm_ridge_lambda = get_config_float(config, "rsm_ridge_lambda", 1.0e-8, minimum=0.0)
+    rsm_model_order = get_config_choice(
+        config,
+        "rsm_model_order",
+        "adaptive",
+        RSM_MODEL_ORDERS,
+    )
+    if (
+        rsm_model_order == "quadratic"
+        and min_surrogate_training_points < QUADRATIC_FEATURE_COUNT
+    ):
+        raise ValueError(
+            "Configuration value 'min_surrogate_training_points' must be at "
+            f"least {QUADRATIC_FEATURE_COUNT} when rsm_model_order is "
+            "'quadratic'. Use rsm_model_order='adaptive' for small FEM budgets."
+        )
+    stress_penalty_scale = get_config_float(
+        config,
+        "stress_penalty_scale",
+        100.0,
+        minimum=0.0,
+    )
+    stress_safety_margin = get_config_float(
+        config,
+        "stress_safety_margin",
+        0.0,
+        minimum=0.0,
+    )
+    if stress_safety_margin >= STRESS_LIMIT:
+        raise ValueError("Configuration value 'stress_safety_margin' is too large")
     srsm_initial_subspace_fraction = validate_fraction_config(
         get_config_float(config, "srsm_initial_subspace_fraction", 0.6, minimum=0.0),
         "srsm_initial_subspace_fraction",
@@ -935,6 +1321,12 @@ def run_optimizer(args):
         1.0e-6,
         minimum=0.0,
     )
+    srsm_convergence_patience = get_config_int(
+        config,
+        "srsm_convergence_patience",
+        5,
+        minimum=1,
+    )
     if min_surrogate_training_points > max_fem_evaluations:
         print(
             "Warning: min_surrogate_training_points is greater than "
@@ -946,12 +1338,14 @@ def run_optimizer(args):
     initialize_objective_log(objective_log_path)
 
     feasible_results = []
+    fem_results = []
     evaluated_design_keys = set()
     best_feasible_objective_so_far = None
     best_feasible_design_so_far = None
     eval_id = 0
     fem_evaluations = 0
     srsm_iteration = 0
+    no_improvement_iterations = 0
     active_subspace_fraction = srsm_initial_subspace_fraction
 
     def evaluate_candidates(
@@ -959,7 +1353,10 @@ def run_optimizer(args):
         phase_name,
         candidate_srsm_iteration=None,
         predicted_values=None,
+        predicted_stress_values=None,
+        acquisition_scores=None,
         candidate_srsm_subspace_fraction=None,
+        candidate_srsm_roi_bounds=None,
     ):
         nonlocal eval_id
         nonlocal fem_evaluations
@@ -970,9 +1367,24 @@ def run_optimizer(args):
             predicted_values = [None] * len(samples)
         if len(predicted_values) != len(samples):
             raise ValueError("predicted_values must match the number of samples")
+        if predicted_stress_values is None:
+            predicted_stress_values = [None] * len(samples)
+        if len(predicted_stress_values) != len(samples):
+            raise ValueError(
+                "predicted_stress_values must match the number of samples"
+            )
+        if acquisition_scores is None:
+            acquisition_scores = [None] * len(samples)
+        if len(acquisition_scores) != len(samples):
+            raise ValueError("acquisition_scores must match the number of samples")
 
         evaluations = []
-        for sample, predicted_objective in zip(samples, predicted_values):
+        for sample, predicted_objective, predicted_stress, acquisition_score in zip(
+            samples,
+            predicted_values,
+            predicted_stress_values,
+            acquisition_scores,
+        ):
             if fem_evaluations >= max_fem_evaluations:
                 break
 
@@ -997,12 +1409,24 @@ def run_optimizer(args):
                     best_feasible_design_so_far,
                     srsm_iteration=candidate_srsm_iteration,
                     predicted_objective=predicted_objective,
+                    predicted_stress=predicted_stress,
+                    acquisition_score=acquisition_score,
                     srsm_subspace_fraction=candidate_srsm_subspace_fraction,
+                    srsm_roi_bounds=candidate_srsm_roi_bounds,
                 )
             )
 
             if evaluation["fem_attempted"]:
                 fem_evaluations += 1
+
+            if evaluation["fem_valid"]:
+                fem_results.append(
+                    {
+                        **{name: evaluation[name] for name in OBJECTIVE_LOG_PARAMETERS},
+                        "energy_objective": evaluation["energy_objective"],
+                        "stress_constraint": evaluation["stress_constraint"],
+                    }
+                )
 
             if evaluation["feasible"]:
                 feasible_results.append(
@@ -1034,6 +1458,9 @@ def run_optimizer(args):
         batch_count = min(surrogate_batch_size, remaining_budget)
         selected_srsm_iteration = None
         selected_predictions = None
+        selected_stress_predictions = None
+        selected_acquisition_scores = None
+        selected_active_bounds = None
         previous_best_before_srsm = None
 
         if len(feasible_results) >= min_surrogate_training_points:
@@ -1045,6 +1472,7 @@ def run_optimizer(args):
                 bounds,
                 active_subspace_fraction,
             )
+            selected_active_bounds = active_bounds
             training_results, model_bounds, training_source = (
                 select_response_surface_training_results(
                     feasible_results,
@@ -1053,7 +1481,28 @@ def run_optimizer(args):
                     min_surrogate_training_points,
                 )
             )
-            model = fit_response_surface(training_results, model_bounds, rsm_ridge_lambda)
+            energy_model = fit_response_surface(
+                training_results,
+                model_bounds,
+                rsm_ridge_lambda,
+                "energy_objective",
+                rsm_model_order,
+            )
+            stress_training_results, stress_model_bounds, stress_training_source = (
+                select_response_surface_training_results(
+                    fem_results,
+                    active_bounds,
+                    bounds,
+                    min_surrogate_training_points,
+                )
+            )
+            stress_model = fit_response_surface(
+                stress_training_results,
+                stress_model_bounds,
+                rsm_ridge_lambda,
+                "stress_constraint",
+                rsm_model_order,
+            )
             candidate_pool_count = max(surrogate_candidate_pool_size, batch_count)
             candidate_pool = generate_unique_geometry_valid_samples(
                 config,
@@ -1064,24 +1513,51 @@ def run_optimizer(args):
                 bounds=active_bounds,
                 minimum_required=batch_count,
             )
-            predictions = predict_response_surface(model, candidate_pool)
-            ranked_indices = np.argsort(predictions)[::-1]
+            predictions = predict_response_surface(energy_model, candidate_pool)
+            stress_predictions = predict_response_surface(stress_model, candidate_pool)
+            acquisition_scores = score_surrogate_candidates(
+                predictions,
+                stress_predictions,
+                STRESS_LIMIT,
+                stress_penalty_scale,
+                stress_safety_margin,
+            )
+            ranked_indices = np.argsort(acquisition_scores)[::-1]
             selected_samples = [
                 candidate_pool[index] for index in ranked_indices[:batch_count]
             ]
             selected_predictions = [
                 float(predictions[index]) for index in ranked_indices[:batch_count]
             ]
+            selected_stress_predictions = [
+                float(stress_predictions[index])
+                for index in ranked_indices[:batch_count]
+            ]
+            selected_acquisition_scores = [
+                float(acquisition_scores[index])
+                for index in ranked_indices[:batch_count]
+            ]
             best_iteration_prediction = selected_predictions[0]
+            best_iteration_stress_prediction = selected_stress_predictions[0]
+            best_iteration_acquisition_score = selected_acquisition_scores[0]
             print(
-                f"SRSM iteration {srsm_iteration}: fitted quadratic response surface with "
-                f"{model['training_count']} feasible FEM points from {training_source} "
-                f"({QUADRATIC_FEATURE_COUNT} features)."
+                f"SRSM iteration {srsm_iteration}: fitted "
+                f"{energy_model['model_order']} energy response surface with "
+                f"{energy_model['training_count']} feasible FEM points from "
+                f"{training_source} ({energy_model['feature_count']} features)."
+            )
+            print(
+                f"SRSM iteration {srsm_iteration}: fitted "
+                f"{stress_model['model_order']} stress response surface with "
+                f"{stress_model['training_count']} FEM-valid points from "
+                f"{stress_training_source} ({stress_model['feature_count']} features)."
             )
             print(
                 f"SRSM iteration {srsm_iteration}: active sub-design fraction "
                 f"{active_subspace_fraction:.3g}; best predicted absorbed energy "
-                f"is {best_iteration_prediction:.6g}; evaluating top "
+                f"is {best_iteration_prediction:.6g}, predicted max stress is "
+                f"{best_iteration_stress_prediction:.6g}, acquisition score is "
+                f"{best_iteration_acquisition_score:.6g}; evaluating top "
                 f"{len(selected_samples)} candidates."
             )
             print(
@@ -1110,18 +1586,31 @@ def run_optimizer(args):
             phase_name,
             candidate_srsm_iteration=selected_srsm_iteration,
             predicted_values=selected_predictions,
+            predicted_stress_values=selected_stress_predictions,
+            acquisition_scores=selected_acquisition_scores,
             candidate_srsm_subspace_fraction=(
                 active_subspace_fraction
                 if selected_srsm_iteration is not None
                 else None
             ),
+            candidate_srsm_roi_bounds=selected_active_bounds,
         )
+        if fem_evaluations == fem_evaluations_before_batch:
+            raise RuntimeError(
+                "No new FEM evaluations were completed in the latest iteration. "
+                "Check candidate generation and cache settings."
+            )
+
         if selected_srsm_iteration is not None:
             improved = has_meaningful_improvement(
                 previous_best_before_srsm,
                 best_feasible_objective_so_far,
                 srsm_improvement_tolerance,
             )
+            if improved:
+                no_improvement_iterations = 0
+            else:
+                no_improvement_iterations += 1
             shrink_factor = (
                 srsm_subspace_shrink_factor
                 if improved
@@ -1143,14 +1632,25 @@ def run_optimizer(args):
             print(
                 f"SRSM iteration {selected_srsm_iteration}: {computed_text}; "
                 f"{adaptation_reason}; next sub-design fraction "
-                f"{active_subspace_fraction:.3g}."
+                f"{active_subspace_fraction:.3g}; no-improvement streak "
+                f"{no_improvement_iterations}/{srsm_convergence_patience}."
             )
             save_convergence_plot(objective_log_path, args.plot_output)
-        if fem_evaluations == fem_evaluations_before_batch:
-            raise RuntimeError(
-                "No new FEM evaluations were completed in the latest iteration. "
-                "Check candidate generation and cache settings."
+            save_roi_evolution_plot(
+                objective_log_path,
+                args.roi_plot_output,
+                bounds,
             )
+            if (
+                active_subspace_fraction <= srsm_min_subspace_fraction + 1.0e-12
+                and no_improvement_iterations >= srsm_convergence_patience
+            ):
+                print(
+                    "SRSM convergence criterion reached: minimum sub-design "
+                    "fraction and no meaningful improvement over "
+                    f"{no_improvement_iterations} consecutive SRSM iterations."
+                )
+                break
 
     if best_feasible_design_so_far is None:
         print(
@@ -1164,6 +1664,7 @@ def run_optimizer(args):
         print(f"Best feasible objective: {best_feasible_objective_so_far}")
 
     save_convergence_plot(objective_log_path, args.plot_output)
+    save_roi_evolution_plot(objective_log_path, args.roi_plot_output, bounds)
 
 def main(argv=None):
     args = parse_args(argv)

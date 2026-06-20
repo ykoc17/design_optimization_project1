@@ -4,13 +4,13 @@
     "_comment2": 
     "Medium-run bounds expanded around the best smoke-test design",
     "dsParameterBounds": {
-        "x1": [39.0, 45.0],
-        "y1": [45.0, 50.5],
-        "x2": [40.0, 47.0],
-        "y2": [22.0, 28.5],
-        "x3": [17.0, 23.0],
-        "y3": [27.5, 33.0],
-        "angle": [62.0, 73.0]
+        "x1": [11.0, 49.0],
+        "y1": [11.0, 49.0],
+        "x2": [8.0, 52.0],
+        "y2": [8.0, 52.5],
+        "x3": [12.0, 48.0],
+        "y3": [12.0, 48.0],
+        "angle": [1.0, 89.0]
     },
     "_comment3": "Successive response surface optimization settings",
     "initial_doe_size": 10,
@@ -20,10 +20,14 @@
     "min_surrogate_training_points": 8,
     "max_candidate_attempts": 10000,
     "cache_round_decimals": 6,
+    "rsm_model_order": "adaptive",
     "rsm_ridge_lambda": 1e-8,
+    "stress_penalty_scale": 100.0,
+    "stress_safety_margin": 0.0,
     "srsm_initial_subspace_fraction": 0.8,
     "srsm_min_subspace_fraction": 0.15,
     "srsm_subspace_shrink_factor": 0.85,
     "srsm_failure_shrink_factor": 0.7,
-    "srsm_improvement_tolerance": 1e-6
+    "srsm_improvement_tolerance": 1e-6,
+    "srsm_convergence_patience": 5
 }
